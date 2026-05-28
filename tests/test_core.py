@@ -5,7 +5,12 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-from afiliado_bot.cli import build_mercadolivre_auth_url, display_category_for_product, export_store_products
+from afiliado_bot.cli import (
+    build_mercadolivre_auth_url,
+    display_category_for_product,
+    export_store_products,
+    import_site_products,
+)
 from afiliado_bot.clients.aliexpress import AliExpressClient
 from afiliado_bot.clients.amazon import AmazonClient
 from afiliado_bot.clients.manual import (
@@ -228,6 +233,27 @@ class CoreTests(unittest.TestCase):
             export_store_products(storage, out_path, limit=10, keep_existing_if_empty=True)
 
             self.assertEqual(out_path.read_text(encoding="utf-8"), current_content)
+
+    def test_import_site_products_seeds_empty_database(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = Storage(Path(temp_dir) / "test.db")
+            storage.init_db()
+            site_products = Path(temp_dir) / "products.js"
+            site_products.write_text(
+                'window.LUMINA_PRODUCTS = [{"source":"mercadolivre",'
+                '"externalId":"MLB123","title":"Oferta do site","price":99.9,'
+                '"originalPrice":149.9,"currency":"BRL","affiliateUrl":"https://example.com/p",'
+                '"imageUrl":"https://example.com/p.jpg","category":"fone bluetooth",'
+                '"score":55,"freeShipping":true}];\n',
+                encoding="utf-8",
+            )
+
+            imported = import_site_products(storage, site_products, limit=10, only_if_empty=True)
+            candidates = storage.list_candidates(limit=5, min_score=25)
+
+            self.assertEqual(imported, 1)
+            self.assertEqual(candidates[0].title, "Oferta do site")
+            self.assertEqual(candidates[0].image_url, "https://example.com/p.jpg")
 
     def test_shopee_offer_v2_mapping_uses_offer_link(self):
         payload = {

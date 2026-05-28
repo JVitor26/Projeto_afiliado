@@ -18,6 +18,7 @@ from .clients.manual import (
     product_from_promo_text,
 )
 from .config import AppConfig, BASE_DIR, load_config
+from .models import Product
 from .posters import DryRunPoster, TelegramPoster, WebhookPoster, WhatsAppPoster
 from .redirect_server import serve_redirects
 from .scheduler import run_forever
@@ -157,6 +158,18 @@ def main(argv: list[str] | None = None) -> int:
     event_parser.add_argument("--event", choices=["click", "sale"], required=True)
     event_parser.add_argument("--channel", default="manual")
     event_parser.add_argument("--value", type=float, default=1.0)
+
+    seed_site_parser = subparsers.add_parser(
+        "seed-site-products",
+        help="importa produtos ja exportados em site/products.js para o banco",
+    )
+    seed_site_parser.add_argument("--path", default=str(BASE_DIR / "site" / "products.js"))
+    seed_site_parser.add_argument("--limit", type=int, default=120)
+    seed_site_parser.add_argument(
+        "--only-if-empty",
+        action="store_true",
+        help="nao importa se o banco ja tiver produtos",
+    )
 
     export_parser = subparsers.add_parser("export-site", help="exporta produtos para a loja estatica")
     export_parser.add_argument("--limit", type=int, default=120)
@@ -427,6 +440,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "record-event":
         storage.record_event(args.product_id, args.event, channel=args.channel, value=args.value)
         print(f"Evento registrado: product_id={args.product_id} event={args.event}")
+        return 0
+
+    if args.command == "seed-site-products":
+        site_products_path = Path(args.path)
+        if not site_products_path.is_absolute():
+            site_products_path = BASE_DIR / site_products_path
+        imported = import_site_products(
+            storage,
+            site_products_path,
+            limit=args.limit,
+            only_if_empty=args.only_if_empty,
+        )
+        print(f"Produtos importados do site: {imported}")
         return 0
 
     if args.command == "stats":
@@ -726,6 +752,94 @@ def import_manual_products(
 
     report["review_out"] = str(review_out)
     return report
+
+
+def import_site_products(storage: Storage, products_path: Path, *, limit: int, only_if_empty: bool = False) -> int:
+    if only_if_empty and storage.stats()["products"] > 0:
+        return 0
+    if not products_path.exists():
+        return 0
+
+    payload = _load_site_products(products_path)
+    imported = 0
+    for record in payload[: max(limit, 0)]:
+        if not isinstance(record, dict):
+            continue
+        title = str(record.get("title") or "").strip()
+        source = str(record.get("source") or "manual").strip().lower() or "manual"
+        external_id = str(record.get("externalId") or record.get("external_id") or "").strip()
+        affiliate_url = str(record.get("affiliateUrl") or record.get("affiliate_url") or "").strip()
+        image_url = str(record.get("imageUrl") or record.get("image_url") or "").strip()
+        price = _site_float(record.get("price"))
+        if not title or not external_id or not affiliate_url:
+            continue
+
+        metadata = {
+            key: record.get(key)
+            for key in (
+                "categoryLabel",
+                "department",
+                "commissionRate",
+                "offerType",
+                "periodEndTime",
+                "sellerCompletedTransactions",
+                "sellerPowerStatus",
+                "sellerLevel",
+                "officialStoreId",
+                "officialStoreName",
+            )
+            if record.get(key) is not None
+        }
+        product = Product(
+            source=source,
+            external_id=external_id,
+            title=title,
+            price=price,
+            original_price=_site_optional_float(record.get("originalPrice") or record.get("original_price")),
+            currency=str(record.get("currency") or "BRL"),
+            permalink=str(record.get("permalink") or affiliate_url),
+            affiliate_url=affiliate_url,
+            image_url=image_url,
+            category=str(record.get("category") or record.get("categoryLabel") or "site"),
+            score=_site_float(record.get("score")),
+            rating=_site_optional_float(record.get("rating")),
+            sold_quantity=_site_optional_int(record.get("soldQuantity") or record.get("sold_quantity")),
+            free_shipping=bool(record.get("freeShipping") or record.get("free_shipping")),
+            metadata={"raw_source": "site_products", **metadata},
+        )
+        storage.upsert_product(product)
+        imported += 1
+    return imported
+
+
+def _load_site_products(products_path: Path) -> list[object]:
+    content = products_path.read_text(encoding="utf-8-sig").strip()
+    prefix = "window.LUMINA_PRODUCTS = "
+    if content.startswith(prefix):
+        content = content[len(prefix) :]
+    if content.endswith(";"):
+        content = content[:-1]
+    payload = json.loads(content)
+    return payload if isinstance(payload, list) else []
+
+
+def _site_float(value: object) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _site_optional_float(value: object) -> float | None:
+    parsed = _site_float(value)
+    return parsed if parsed > 0 else None
+
+
+def _site_optional_int(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def run_mercadolivre_auto(
