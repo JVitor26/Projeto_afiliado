@@ -274,7 +274,7 @@ jobs:
             python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}"
           fi
 
-          python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}"
+          python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
           python -m afiliado_bot stats
 
       - name: Salvar banco do bot

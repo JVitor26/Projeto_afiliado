@@ -161,6 +161,11 @@ def main(argv: list[str] | None = None) -> int:
     export_parser = subparsers.add_parser("export-site", help="exporta produtos para a loja estatica")
     export_parser.add_argument("--limit", type=int, default=120)
     export_parser.add_argument("--out", default=str(BASE_DIR / "site" / "products.js"))
+    export_parser.add_argument(
+        "--keep-existing-if-empty",
+        action="store_true",
+        help="mantem o products.js atual quando o banco nao tiver produtos exportaveis",
+    )
 
     subparsers.add_parser("stats", help="mostra resumo do banco")
 
@@ -432,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
         out_path = Path(args.out)
         if not out_path.is_absolute():
             out_path = BASE_DIR / out_path
-        export_store_products(storage, out_path, limit=args.limit)
+        export_store_products(storage, out_path, limit=args.limit, keep_existing_if_empty=args.keep_existing_if_empty)
         print(f"Produtos exportados para: {out_path}")
         return 0
 
@@ -907,7 +912,7 @@ def _build_posters(config: AppConfig, *, force_dry_run: bool) -> list[object]:
     return posters
 
 
-def export_store_products(storage: Storage, out_path: Path, *, limit: int) -> None:
+def export_store_products(storage: Storage, out_path: Path, *, limit: int, keep_existing_if_empty: bool = False) -> None:
     products = storage.list_products_for_store(limit=limit, require_image=True)
     payload = []
     for product in products:
@@ -941,6 +946,9 @@ def export_store_products(storage: Storage, out_path: Path, *, limit: int) -> No
                 "officialStoreName": product.metadata.get("official_store_name"),
             }
         )
+
+    if keep_existing_if_empty and not payload and out_path.exists():
+        return
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

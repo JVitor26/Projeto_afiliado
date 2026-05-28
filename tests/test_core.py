@@ -217,6 +217,18 @@ class CoreTests(unittest.TestCase):
             self.assertIn("Produto com imagem", content)
             self.assertNotIn("Produto sem imagem", content)
 
+    def test_export_store_products_can_preserve_existing_file_when_empty(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = Storage(Path(temp_dir) / "test.db")
+            storage.init_db()
+            out_path = Path(temp_dir) / "products.js"
+            current_content = 'window.LUMINA_PRODUCTS = [{"title":"Atual"}];\n'
+            out_path.write_text(current_content, encoding="utf-8")
+
+            export_store_products(storage, out_path, limit=10, keep_existing_if_empty=True)
+
+            self.assertEqual(out_path.read_text(encoding="utf-8"), current_content)
+
     def test_shopee_offer_v2_mapping_uses_offer_link(self):
         payload = {
             "nodes": [
