@@ -391,6 +391,8 @@ https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 
 A WhatsApp Cloud API oficial envia mensagens para numeros de telefone de usuarios, nao para links de Canal do WhatsApp. Para automacao pelo bot, use `WHATSAPP_CHAT_IDS` somente com numeros com codigo do pais, ou use `SOCIAL_WEBHOOK_URLS` com um provedor externo que tenha suporte aprovado para publicar em canais.
 
+Quando `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` e `WHATSAPP_CHAT_IDS` estiverem configurados, os comandos de publicacao enviam a mesma oferta para WhatsApp e Telegram. Produtos com imagem vao como imagem com legenda; produtos sem imagem vao como texto.
+
 ## Medir cliques
 
 Se voce tiver um dominio publico apontando para a maquina/servidor, configure:

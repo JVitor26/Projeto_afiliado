@@ -12,7 +12,7 @@ A API oficial WhatsApp Cloud API envia mensagens para numeros de telefone de usu
 
 ## Opcao 1: WhatsApp Cloud API
 
-Use esta opcao para enviar ofertas para numeros de telefone com opt-in, usando a API oficial da Meta.
+Use esta opcao para enviar as mesmas ofertas do Telegram para numeros de telefone com opt-in, usando a API oficial da Meta. Quando o produto tem imagem, o bot envia a imagem com a legenda da oferta. Quando nao tem imagem, envia a mensagem em texto.
 
 ### Setup
 
@@ -41,6 +41,13 @@ WHATSAPP_CHAT_IDS=5511999999999,5565999999999
 
 ```bash
 echo "https://amzn.to/SEU_LINK" | python -m afiliado_bot link-offer
+```
+
+Depois de configurado, qualquer comando que publique ofertas tambem tentara enviar no WhatsApp:
+
+```bash
+python -m afiliado_bot publish --limit 1
+python -m afiliado_bot auto-mercadolivre
 ```
 
 ## Opcao 2: Webhook externo

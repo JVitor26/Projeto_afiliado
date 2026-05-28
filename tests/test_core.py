@@ -560,6 +560,56 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["messaging_product"], "whatsapp")
         self.assertEqual(calls[0][1]["recipient_type"], "individual")
         self.assertEqual(calls[0][1]["to"], "5565999999999")
+        self.assertEqual(calls[0][1]["type"], "text")
+        self.assertEqual(calls[0][1]["text"]["body"], "Oferta teste")
+
+    def test_whatsapp_posts_image_with_offer_caption(self):
+        calls = []
+
+        class FakeWhatsAppResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b'{"messages":[{"id":"wamid.test"}]}'
+
+        def fake_urlopen(request, timeout):
+            calls.append((request.full_url, json.loads(request.data.decode("utf-8"))))
+            return FakeWhatsAppResponse()
+
+        product = Product(
+            source="mercadolivre",
+            external_id="MLB1",
+            title="Oferta Mercado Livre",
+            price=99,
+            currency="BRL",
+            permalink="https://produto.mercadolivre.com.br/MLB-1",
+            affiliate_url="https://produto.mercadolivre.com.br/MLB-1",
+            image_url="https://http2.mlstatic.com/produto.jpg",
+        )
+        poster = WhatsAppPoster(
+            AppConfig(
+                whatsapp_access_token="token",
+                whatsapp_phone_number_id="123456",
+                whatsapp_chat_ids=["5565999999999"],
+            )
+        )
+
+        with patch("afiliado_bot.posters.whatsapp.urlopen", fake_urlopen):
+            results = poster.post("<b>Oferta Mercado Livre</b>\n\n➡️ <b>COMPRE PELO SITE:</b> https://exemplo", product)
+
+        self.assertTrue(results[0].success)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1]["type"], "image")
+        self.assertEqual(calls[0][1]["image"]["link"], "https://http2.mlstatic.com/produto.jpg")
+        self.assertIn("*Oferta Mercado Livre*", calls[0][1]["image"]["caption"])
+        self.assertIn("*COMPRE PELO SITE:* https://exemplo", calls[0][1]["image"]["caption"])
+        self.assertNotIn("<b>", calls[0][1]["image"]["caption"])
 
     def test_whatsapp_rejects_channel_link_recipient(self):
         product = Product(
