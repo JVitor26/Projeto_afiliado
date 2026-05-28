@@ -16,6 +16,9 @@ concurrency:
   group: afiliado-bot
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
   pages: write
@@ -52,10 +55,10 @@ jobs:
 
     steps:
       - name: Baixar repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -221,7 +224,7 @@ jobs:
           echo "Canal do WhatsApp informado: $whatsapp_canal"
 
       - name: Restaurar banco do bot
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             data/affiliate.db
@@ -263,7 +266,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m afiliado_bot init-db
-          python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}"
+          python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
 
           if [ "$DRY_RUN" = "true" ]; then
             python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}" --dry-run
@@ -276,7 +279,7 @@ jobs:
 
       - name: Salvar banco do bot
         if: env.DRY_RUN != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             data/affiliate.db

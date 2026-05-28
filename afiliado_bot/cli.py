@@ -107,6 +107,11 @@ def main(argv: list[str] | None = None) -> int:
     mine_parser = subparsers.add_parser("mine", help="busca e ranqueia produtos")
     mine_parser.add_argument("--keyword", action="append", dest="keywords")
     mine_parser.add_argument("--limit-per-keyword", type=int)
+    mine_parser.add_argument(
+        "--allow-errors",
+        action="store_true",
+        help="continua com codigo 0 mesmo se alguma fonte bloquear ou falhar",
+    )
 
     auto_ml_parser = subparsers.add_parser(
         "auto-mercadolivre",
@@ -445,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Erros:")
             for error in report.errors:
                 print(f"- {error}")
-        return 0 if not report.errors else 2
+        return 0 if args.allow_errors or not report.errors else 2
 
     if args.command in {"auto-mercadolivre", "auto-amazon"}:
         if args.command == "auto-amazon":
