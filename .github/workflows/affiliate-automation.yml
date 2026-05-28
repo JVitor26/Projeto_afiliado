@@ -9,8 +9,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # GitHub usa UTC. Este agendamento roda a cada 30 minutos.
-    - cron: "*/30 * * * *"
+    # GitHub usa UTC. Este agendamento roda a cada 8 minutos.
+    - cron: "*/8 * * * *"
 
 concurrency:
   group: afiliado-bot

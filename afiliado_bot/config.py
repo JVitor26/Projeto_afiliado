@@ -13,12 +13,15 @@ DEFAULT_ALIEXPRESS_FIELDS = (
 )
 DEFAULT_KEYWORDS = (
     "celular,smartphone,iphone,notebook,monitor,ssd,fone bluetooth,headset gamer,"
-    "smartwatch,tablet,caixa de som,teclado gamer,mouse gamer,controle xbox,"
-    "air fryer,panela eletrica,liquidificador,cafeteira,aspirador de po,"
-    "ventilador,climatizador,geladeira,micro-ondas,maquina de lavar,"
-    "organizador,utensilios de cozinha,jogo de panelas,cama mesa banho,"
-    "toalha,jogo de cama,luminaria,furadeira,parafusadeira,ferramentas,"
-    "mochila,tenis,beleza,barbeador,escova secadora,pet shop,brinquedos"
+    "smartwatch,tablet,caixa de som bluetooth,teclado gamer,mouse gamer,roteador wifi,"
+    "webcam,carregador turbo,power bank,air fryer,fritadeira eletrica,panela eletrica,"
+    "liquidificador,cafeteira,aspirador de po,ventilador,climatizador,geladeira,"
+    "micro-ondas,maquina de lavar,lava e seca,purificador de agua,organizador,"
+    "utensilios de cozinha,jogo de panelas,panelas,cama mesa banho,toalha,jogo de cama,"
+    "luminaria,suporte de parede,furadeira,parafusadeira,ferramentas,jogo de ferramentas,"
+    "caixa de ferramentas,serra eletrica,esmerilhadeira,lavadora de alta pressao,"
+    "compressor de ar,kit automotivo,acessorios carro,carregador veicular,camera veicular,"
+    "aspirador automotivo,pneu,calibrador pneu,suporte celular carro,som automotivo"
 )
 
 
@@ -150,7 +153,7 @@ class AppConfig:
 
     mine_limit_per_keyword: int = 20
     publish_limit: int = 1
-    interval_minutes: int = 15
+    interval_minutes: int = 8
     enabled_sources: list[str] = field(default_factory=list)
 
 
@@ -258,6 +261,6 @@ def load_config() -> AppConfig:
         webhook_urls=_csv("SOCIAL_WEBHOOK_URLS"),
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
         publish_limit=_int("PUBLISH_LIMIT", 1),
-        interval_minutes=_int("INTERVAL_MINUTES", 15),
+        interval_minutes=_int("INTERVAL_MINUTES", 8),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),
     )

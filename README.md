@@ -138,13 +138,13 @@ Quando o preview estiver correto, rode sem `--dry-run` para atualizar `site/prod
 python -m afiliado_bot auto-mercadolivre
 ```
 
-O comando usa as `KEYWORDS` do `.env`. A configuracao padrao cobre tecnologia, casa, cozinha, eletrodomesticos, ferramentas, moda, beleza, pets e brinquedos. Para buscar nichos especificos nessa execucao:
+O comando usa as `KEYWORDS` do `.env`. A configuracao padrao foca em tecnologia, eletrodomesticos, ferramentas, produtos de casa, utensilios de cozinha e automotivo. Para buscar nichos especificos nessa execucao:
 
 ```powershell
 python -m afiliado_bot auto-mercadolivre --keyword "fone bluetooth" --keyword "smartwatch"
 ```
 
-Por padrao, o bot publica 1 produto a cada 15 minutos (`PUBLISH_LIMIT=1` e `INTERVAL_MINUTES=15`). Para deixar repetindo automaticamente:
+Por padrao, o bot publica 1 produto a cada 8 minutos (`PUBLISH_LIMIT=1` e `INTERVAL_MINUTES=8`). Para deixar repetindo automaticamente:
 
 ```powershell
 python -m afiliado_bot auto-mercadolivre --loop
@@ -455,7 +455,7 @@ A loja inclui:
 
 ## Rodar sem deixar o computador ligado
 
-Este projeto ja inclui um agendador em `.github/workflows/affiliate-automation.yml` para rodar no GitHub Actions. Ele faz, a cada 30 minutos:
+Este projeto ja inclui um agendador em `.github/workflows/affiliate-automation.yml` para rodar no GitHub Actions. Ele faz, a cada 8 minutos:
 
 1. restaura o banco SQLite do bot pelo cache do GitHub Actions;
 2. roda os testes;
@@ -499,7 +499,7 @@ SOCIAL_WEBHOOK_URLS
 Em `Variables`, voce pode ajustar a automacao sem mexer no codigo:
 
 ```text
-KEYWORDS=fone bluetooth,smartwatch,air fryer
+KEYWORDS=fone bluetooth,smartwatch,air fryer,furadeira,utensilios de cozinha,acessorios carro
 ENABLED_SOURCES=mercadolivre,amazon,aliexpress,shopee,manual
 MINE_LIMIT_PER_KEYWORD=10
 PUBLISH_LIMIT=1
