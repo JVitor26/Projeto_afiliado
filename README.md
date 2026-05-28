@@ -377,6 +377,7 @@ Exemplo:
 
 ```env
 SOCIAL_WEBHOOK_URLS=https://seu-n8n/webhook/ofertas
+WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 ```
 
 Para Instagram/Facebook/WhatsApp, o caminho correto e usar APIs oficiais ou um fluxo n8n/Make com suas credenciais aprovadas.
@@ -392,6 +393,8 @@ https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 A WhatsApp Cloud API oficial envia mensagens para numeros de telefone de usuarios, nao para links de Canal do WhatsApp. Para automacao pelo bot, use `WHATSAPP_CHAT_IDS` somente com numeros com codigo do pais, ou use `SOCIAL_WEBHOOK_URLS` com um provedor externo que tenha suporte aprovado para publicar em canais.
 
 Quando `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` e `WHATSAPP_CHAT_IDS` estiverem configurados, os comandos de publicacao enviam a mesma oferta para WhatsApp e Telegram. Produtos com imagem vao como imagem com legenda; produtos sem imagem vao como texto.
+
+Para usar apenas Canal do WhatsApp, configure `SOCIAL_WEBHOOK_URLS` e `WHATSAPP_CHANNEL_URL`. O bot envia a oferta pronta para o webhook, mas o receptor ainda precisa ser um servico com suporte aprovado para publicar no Canal.
 
 ## Medir cliques
 
@@ -490,6 +493,7 @@ SHOPEE_AUTHORIZATION_HEADER
 WHATSAPP_ACCESS_TOKEN
 WHATSAPP_PHONE_NUMBER_ID
 WHATSAPP_CHAT_IDS
+SOCIAL_WEBHOOK_URLS
 ```
 
 Em `Variables`, voce pode ajustar a automacao sem mexer no codigo:
@@ -506,6 +510,7 @@ AMAZON_AFFILIATE_TEMPLATE={url}?tag={affiliate_id}
 MERCADOLIVRE_AFFILIATE_TEMPLATE={url}
 ALIEXPRESS_TRACKING_ID=seu_tracking_id
 WHATSAPP_GRAPH_API_VERSION=v25.0
+WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 ```
 
 Depois disso, abra a aba `Actions`, escolha `Agendador Afiliado` e rode manualmente uma vez. Se quiser testar sem publicar no Telegram, use `Run workflow` com `dry_run=true`.

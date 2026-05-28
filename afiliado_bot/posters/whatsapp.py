@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from html import unescape
 import json
 import re
 from urllib.error import HTTPError, URLError
@@ -9,6 +8,8 @@ from urllib.request import Request, urlopen
 
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import PostResult
+
+from .formatting import compact_response, format_for_whatsapp
 
 
 class WhatsAppPoster:
@@ -58,7 +59,7 @@ class WhatsAppPoster:
         return results
 
     def _post_to_recipient(self, recipient: str, message: str, product: object, *, channel: str) -> PostResult:
-        text = _format_for_whatsapp(message)
+        text = format_for_whatsapp(message)
         image_url = str(getattr(product, "image_url", "") or "").strip()
         if not image_url:
             return self._send_text(recipient, text, channel=channel)
@@ -80,13 +81,13 @@ class WhatsAppPoster:
             return PostResult(
                 channel=channel,
                 success=True,
-                response=_compact_response(image_result.response, text_result.response),
+                response=compact_response(image_result.response, text_result.response),
                 status_code=text_result.status_code,
             )
         return PostResult(
             channel=channel,
             success=False,
-            response=_compact_response("image sent, message failed", text_result.response),
+            response=compact_response("image sent, message failed", text_result.response),
             status_code=text_result.status_code,
         )
 
@@ -145,16 +146,6 @@ class WhatsAppPoster:
             return PostResult(channel=channel, success=False, response=f"Erro: {str(exc)[:200]}")
 
 
-def _format_for_whatsapp(message: str) -> str:
-    text = message or "Nova oferta"
-    text = re.sub(r"<b>(.*?)</b>", r"*\1*", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"<strong>(.*?)</strong>", r"*\1*", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"<s>(.*?)</s>", r"~\1~", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"<strike>(.*?)</strike>", r"~\1~", text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"<[^>]+>", "", text)
-    return unescape(text).strip() or "Nova oferta"
-
-
 def _normalize_recipient(raw_recipient: str) -> str | None:
     recipient = raw_recipient.strip()
     if not recipient:
@@ -170,16 +161,12 @@ def _fallback_result(reason: str, first_result: PostResult, second_result: PostR
         return PostResult(
             channel=second_result.channel,
             success=True,
-            response=_compact_response(reason, first_result.response, second_result.response),
+            response=compact_response(reason, first_result.response, second_result.response),
             status_code=second_result.status_code,
         )
     return PostResult(
         channel=second_result.channel,
         success=False,
-        response=_compact_response(reason, first_result.response, second_result.response),
+        response=compact_response(reason, first_result.response, second_result.response),
         status_code=second_result.status_code or first_result.status_code,
     )
-
-
-def _compact_response(*parts: str) -> str:
-    return " | ".join(part for part in parts if part)[:500]

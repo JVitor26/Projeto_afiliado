@@ -19,6 +19,7 @@ from afiliado_bot.clients.shopee import ShopeeClient
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 from afiliado_bot.posters.telegram import TelegramPoster
+from afiliado_bot.posters.webhook import WebhookPoster
 from afiliado_bot.posters.whatsapp import WhatsAppPoster
 from afiliado_bot.scoring import ProductRanker
 from afiliado_bot.services.publishing import build_offer_message
@@ -633,6 +634,56 @@ class CoreTests(unittest.TestCase):
 
         self.assertFalse(results[0].success)
         self.assertIn("Canal do WhatsApp", results[0].response)
+
+    def test_webhook_payload_includes_whatsapp_channel_target(self):
+        calls = []
+
+        class FakeWebhookResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b'{"ok":true}'
+
+        def fake_urlopen(request, timeout):
+            calls.append((request.full_url, json.loads(request.data.decode("utf-8"))))
+            return FakeWebhookResponse()
+
+        product = Product(
+            source="mercadolivre",
+            external_id="MLB1",
+            title="Oferta Mercado Livre",
+            price=99,
+            original_price=149,
+            currency="BRL",
+            permalink="https://produto.mercadolivre.com.br/MLB-1",
+            affiliate_url="https://produto.mercadolivre.com.br/MLB-1",
+            image_url="https://http2.mlstatic.com/produto.jpg",
+            category="fone bluetooth",
+            score=88,
+        )
+        poster = WebhookPoster(
+            AppConfig(
+                webhook_urls=["https://example.com/webhook"],
+                whatsapp_channel_url="https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w",
+            )
+        )
+
+        with patch("afiliado_bot.posters.webhook.urlopen", fake_urlopen):
+            results = poster.post("<b>Oferta Mercado Livre</b>", product)
+
+        self.assertTrue(results[0].success)
+        self.assertEqual(calls[0][0], "https://example.com/webhook")
+        self.assertEqual(calls[0][1]["target"]["type"], "whatsapp_channel")
+        self.assertEqual(calls[0][1]["target"]["url"], "https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w")
+        self.assertEqual(calls[0][1]["whatsapp_channel"]["send_mode"], "image")
+        self.assertEqual(calls[0][1]["whatsapp_channel"]["text"], "*Oferta Mercado Livre*")
+        self.assertEqual(calls[0][1]["product"]["discount_percent"], product.discount_percent)
 
 
 if __name__ == "__main__":

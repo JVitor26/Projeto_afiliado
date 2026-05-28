@@ -7,6 +7,8 @@ from urllib.request import Request, urlopen
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import PostResult, Product
 
+from .formatting import format_for_whatsapp
+
 
 class WebhookPoster:
     channel = "webhook"
@@ -23,16 +25,32 @@ class WebhookPoster:
         if not self.enabled:
             return [PostResult(channel=self.channel, success=False, response="webhook not configured")]
 
+        whatsapp_message = format_for_whatsapp(message)
+        whatsapp_channel = self.config.whatsapp_channel_url.strip()
         payload = json.dumps(
             {
                 "message": message,
+                "message_text": whatsapp_message,
+                "target": {
+                    "type": "whatsapp_channel" if whatsapp_channel else "external_webhook",
+                    "url": whatsapp_channel,
+                },
+                "whatsapp_channel": {
+                    "url": whatsapp_channel,
+                    "send_mode": "image" if product.image_url else "text",
+                    "text": whatsapp_message,
+                    "image_url": product.image_url,
+                },
                 "product": {
                     "id": product.id,
                     "source": product.source,
                     "external_id": product.external_id,
                     "title": product.title,
                     "price": product.price,
+                    "original_price": product.original_price,
+                    "discount_percent": product.discount_percent,
                     "currency": product.currency,
+                    "permalink": product.permalink,
                     "affiliate_url": product.affiliate_url,
                     "image_url": product.image_url,
                     "category": product.category,

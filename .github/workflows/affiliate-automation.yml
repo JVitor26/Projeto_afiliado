@@ -115,6 +115,7 @@ jobs:
           V_TELEGRAM_PARSE_MODE: ${{ vars.TELEGRAM_PARSE_MODE }}
           V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW: ${{ vars.TELEGRAM_DISABLE_WEB_PAGE_PREVIEW }}
           V_WHATSAPP_GRAPH_API_VERSION: ${{ vars.WHATSAPP_GRAPH_API_VERSION }}
+          V_WHATSAPP_CHANNEL_URL: ${{ vars.WHATSAPP_CHANNEL_URL }}
         run: |
           set -euo pipefail
 
@@ -183,6 +184,7 @@ jobs:
           add_env TELEGRAM_PARSE_MODE "$V_TELEGRAM_PARSE_MODE"
           add_env TELEGRAM_DISABLE_WEB_PAGE_PREVIEW "$V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW"
           add_env WHATSAPP_GRAPH_API_VERSION "$V_WHATSAPP_GRAPH_API_VERSION"
+          add_env WHATSAPP_CHANNEL_URL "$V_WHATSAPP_CHANNEL_URL"
 
       - name: Restaurar banco do bot
         uses: actions/cache/restore@v4
@@ -198,13 +200,27 @@ jobs:
       - name: Rodar testes
         run: python -m unittest discover -s tests
 
-      - name: Conferir credenciais Telegram
+      - name: Conferir destino de publicacao
         if: env.DRY_RUN != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_IDS:-}" ]; then
-            echo "::error::Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_IDS nos Secrets do repositorio."
+          has_telegram=false
+          has_whatsapp=false
+          has_webhook=false
+
+          if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_IDS:-}" ]; then
+            has_telegram=true
+          fi
+          if [ -n "${WHATSAPP_ACCESS_TOKEN:-}" ] && [ -n "${WHATSAPP_PHONE_NUMBER_ID:-}" ] && [ -n "${WHATSAPP_CHAT_IDS:-}" ]; then
+            has_whatsapp=true
+          fi
+          if [ -n "${SOCIAL_WEBHOOK_URLS:-}" ]; then
+            has_webhook=true
+          fi
+
+          if [ "$has_telegram" != "true" ] && [ "$has_whatsapp" != "true" ] && [ "$has_webhook" != "true" ]; then
+            echo "::error::Configure Telegram, WhatsApp por numero ou SOCIAL_WEBHOOK_URLS nos Secrets do repositorio."
             exit 1
           fi
 

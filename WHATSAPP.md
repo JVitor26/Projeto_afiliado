@@ -52,13 +52,38 @@ python -m afiliado_bot auto-mercadolivre
 
 ## Opcao 2: Webhook externo
 
-Use `SOCIAL_WEBHOOK_URLS` para enviar a oferta para um fluxo externo como n8n, Make ou outro provedor aprovado.
+Use `SOCIAL_WEBHOOK_URLS` para enviar a oferta para um fluxo externo como n8n, Make ou outro provedor aprovado. Essa e a configuracao para tentar publicar somente no Canal do WhatsApp, desde que o servico que recebe o webhook tenha suporte para isso.
 
 ```env
 SOCIAL_WEBHOOK_URLS=https://seu-n8n-webhook-url
+WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 ```
 
-O bot envia JSON com `message` e `product`. Se o provedor que voce escolher tiver uma integracao legitima com Canal do WhatsApp, ele deve receber esse webhook e fazer a publicacao por la.
+Para usar apenas o canal via webhook, deixe `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_IDS`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` e `WHATSAPP_CHAT_IDS` vazios no GitHub Actions. Configure somente:
+
+```text
+SOCIAL_WEBHOOK_URLS
+WHATSAPP_CHANNEL_URL
+```
+
+O bot envia JSON com `message`, `message_text`, `target`, `whatsapp_channel` e `product`. O bloco `whatsapp_channel` vem pronto para o receptor publicar:
+
+```json
+{
+  "target": {
+    "type": "whatsapp_channel",
+    "url": "https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w"
+  },
+  "whatsapp_channel": {
+    "url": "https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w",
+    "send_mode": "image",
+    "text": "*Nome do produto* | Por *R$ 99,90*",
+    "image_url": "https://..."
+  }
+}
+```
+
+Se o provedor que voce escolher tiver uma integracao legitima com Canal do WhatsApp, ele deve receber esse webhook e fazer a publicacao por la.
 
 ## Qual escolher?
 

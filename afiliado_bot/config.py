@@ -144,6 +144,7 @@ class AppConfig:
     whatsapp_phone_number_id: str = ""
     whatsapp_chat_ids: list[str] = field(default_factory=list)
     whatsapp_graph_api_version: str = "v25.0"
+    whatsapp_channel_url: str = ""
 
     webhook_urls: list[str] = field(default_factory=list)
 
@@ -253,6 +254,7 @@ def load_config() -> AppConfig:
         whatsapp_phone_number_id=os.getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
         whatsapp_chat_ids=_csv("WHATSAPP_CHAT_IDS"),
         whatsapp_graph_api_version=os.getenv("WHATSAPP_GRAPH_API_VERSION", "v25.0"),
+        whatsapp_channel_url=os.getenv("WHATSAPP_CHANNEL_URL", ""),
         webhook_urls=_csv("SOCIAL_WEBHOOK_URLS"),
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
         publish_limit=_int("PUBLISH_LIMIT", 1),
