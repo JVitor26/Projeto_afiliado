@@ -66,6 +66,8 @@ SOCIAL_WEBHOOK_URLS
 WHATSAPP_CHANNEL_URL
 ```
 
+No GitHub, coloque `SOCIAL_WEBHOOK_URLS` em `Repository secrets` ou `Repository variables`. Se os dois existirem, o secret e usado. Coloque `WHATSAPP_CHANNEL_URL` em `Repository variables`.
+
 O bot envia JSON com `message`, `message_text`, `target`, `whatsapp_channel` e `product`. O bloco `whatsapp_channel` vem pronto para o receptor publicar:
 
 ```json

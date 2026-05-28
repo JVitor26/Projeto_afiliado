@@ -115,6 +115,7 @@ jobs:
           V_ALIEXPRESS_FIELDS: ${{ vars.ALIEXPRESS_FIELDS }}
           V_TELEGRAM_PARSE_MODE: ${{ vars.TELEGRAM_PARSE_MODE }}
           V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW: ${{ vars.TELEGRAM_DISABLE_WEB_PAGE_PREVIEW }}
+          V_SOCIAL_WEBHOOK_URLS: ${{ vars.SOCIAL_WEBHOOK_URLS }}
           V_WHATSAPP_GRAPH_API_VERSION: ${{ vars.WHATSAPP_GRAPH_API_VERSION }}
           V_WHATSAPP_CHANNEL_URL: ${{ vars.WHATSAPP_CHANNEL_URL }}
         run: |
@@ -185,8 +186,39 @@ jobs:
           add_env ALIEXPRESS_FIELDS "$V_ALIEXPRESS_FIELDS"
           add_env TELEGRAM_PARSE_MODE "$V_TELEGRAM_PARSE_MODE"
           add_env TELEGRAM_DISABLE_WEB_PAGE_PREVIEW "$V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW"
+          if [ -z "${SOCIAL_WEBHOOK_URLS:-}" ]; then
+            add_env SOCIAL_WEBHOOK_URLS "$V_SOCIAL_WEBHOOK_URLS"
+          fi
           add_env WHATSAPP_GRAPH_API_VERSION "$V_WHATSAPP_GRAPH_API_VERSION"
           add_env WHATSAPP_CHANNEL_URL "$V_WHATSAPP_CHANNEL_URL"
+
+      - name: Mostrar destinos configurados
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          telegram="nao"
+          whatsapp_numero="nao"
+          webhook="nao"
+          whatsapp_canal="nao"
+
+          if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_IDS:-}" ]; then
+            telegram="sim"
+          fi
+          if [ -n "${WHATSAPP_ACCESS_TOKEN:-}" ] && [ -n "${WHATSAPP_PHONE_NUMBER_ID:-}" ] && [ -n "${WHATSAPP_CHAT_IDS:-}" ]; then
+            whatsapp_numero="sim"
+          fi
+          if [ -n "${SOCIAL_WEBHOOK_URLS:-}" ]; then
+            webhook="sim"
+          fi
+          if [ -n "${WHATSAPP_CHANNEL_URL:-}" ]; then
+            whatsapp_canal="sim"
+          fi
+
+          echo "Telegram configurado: $telegram"
+          echo "WhatsApp por numero configurado: $whatsapp_numero"
+          echo "Webhook configurado: $webhook"
+          echo "Canal do WhatsApp informado: $whatsapp_canal"
 
       - name: Restaurar banco do bot
         uses: actions/cache/restore@v4
@@ -222,7 +254,7 @@ jobs:
           fi
 
           if [ "$has_telegram" != "true" ] && [ "$has_whatsapp" != "true" ] && [ "$has_webhook" != "true" ]; then
-            echo "::error::Configure Telegram, WhatsApp por numero ou SOCIAL_WEBHOOK_URLS nos Secrets do repositorio."
+            echo "::error::Configure Telegram, WhatsApp por numero ou SOCIAL_WEBHOOK_URLS em Settings > Secrets and variables > Actions. SOCIAL_WEBHOOK_URLS pode ficar em Repository secrets ou Repository variables."
             exit 1
           fi
 

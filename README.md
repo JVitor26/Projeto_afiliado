@@ -496,6 +496,8 @@ WHATSAPP_CHAT_IDS
 SOCIAL_WEBHOOK_URLS
 ```
 
+Para usar somente webhook/Pipedream para o Canal do WhatsApp, `SOCIAL_WEBHOOK_URLS` tambem pode ficar em `Variables`. Se ele estiver em `Secrets`, o valor secreto tem prioridade.
+
 Em `Variables`, voce pode ajustar a automacao sem mexer no codigo:
 
 ```text
@@ -510,6 +512,7 @@ AMAZON_PARTNER_TAG=seu-tag-20
 AMAZON_AFFILIATE_TEMPLATE={url}?tag={affiliate_id}
 MERCADOLIVRE_AFFILIATE_TEMPLATE={url}
 ALIEXPRESS_TRACKING_ID=seu_tracking_id
+SOCIAL_WEBHOOK_URLS=https://seu-webhook-pipedream
 WHATSAPP_GRAPH_API_VERSION=v25.0
 WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
 ```
