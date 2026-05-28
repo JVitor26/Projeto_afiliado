@@ -15,11 +15,19 @@ class PublishingService:
         self.posters = posters
 
     def publish(self, *, limit: int, dry_run: bool = False, min_score: float | None = None) -> int:
+        score_floor = self.config.min_score_to_publish if min_score is None else min_score
         products = self.storage.list_candidates(
             limit=limit,
-            min_score=self.config.min_score_to_publish if min_score is None else min_score,
+            min_score=score_floor,
             unpublished_only=not dry_run,
         )
+        if not products and not dry_run and self.config.repost_after_minutes > 0:
+            products = self.storage.list_repost_candidates(
+                limit=limit,
+                min_score=score_floor,
+                cooldown_minutes=self.config.repost_after_minutes,
+            )
+
         sent = 0
         for product in products:
             message = build_offer_message(product, self.config.public_base_url)

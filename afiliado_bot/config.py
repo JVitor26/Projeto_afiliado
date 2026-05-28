@@ -154,6 +154,7 @@ class AppConfig:
     mine_limit_per_keyword: int = 20
     publish_limit: int = 1
     interval_minutes: int = 8
+    repost_after_minutes: int = 8
     enabled_sources: list[str] = field(default_factory=list)
 
 
@@ -262,5 +263,6 @@ def load_config() -> AppConfig:
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
         publish_limit=_int("PUBLISH_LIMIT", 1),
         interval_minutes=_int("INTERVAL_MINUTES", 8),
+        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 8),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),
     )

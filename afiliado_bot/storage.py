@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -153,6 +154,30 @@ class Storage:
         params.append(limit)
         with self.session() as conn:
             rows = conn.execute(query, params).fetchall()
+        return [self._row_to_product(row) for row in rows]
+
+    def list_repost_candidates(self, *, limit: int, min_score: float, cooldown_minutes: int) -> list[Product]:
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(cooldown_minutes, 1))).replace(
+            microsecond=0
+        ).isoformat()
+        with self.session() as conn:
+            rows = conn.execute(
+                """
+                select p.*, max(posts.posted_at) as last_posted_at
+                from products p
+                left join posts on posts.product_id = p.id and posts.status = 'sent'
+                where p.score >= ?
+                group by p.id
+                having last_posted_at is null or last_posted_at <= ?
+                order by
+                    case when last_posted_at is null then 0 else 1 end,
+                    last_posted_at asc,
+                    p.score desc,
+                    p.last_seen desc
+                limit ?
+                """,
+                (min_score, cutoff, limit),
+            ).fetchall()
         return [self._row_to_product(row) for row in rows]
 
     def list_products_for_store(self, *, limit: int = 120, require_image: bool = False) -> list[Product]:

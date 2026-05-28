@@ -17,12 +17,12 @@ from afiliado_bot.clients.manual import (
 from afiliado_bot.clients.mercadolivre import _catalog_item_rank, _item_permalink
 from afiliado_bot.clients.shopee import ShopeeClient
 from afiliado_bot.config import AppConfig
-from afiliado_bot.models import Product
+from afiliado_bot.models import PostResult, Product
 from afiliado_bot.posters.telegram import TelegramPoster
 from afiliado_bot.posters.webhook import WebhookPoster
 from afiliado_bot.posters.whatsapp import WhatsAppPoster
 from afiliado_bot.scoring import ProductRanker
-from afiliado_bot.services.publishing import build_offer_message
+from afiliado_bot.services.publishing import PublishingService, build_offer_message
 from afiliado_bot.storage import Storage
 
 
@@ -37,6 +37,17 @@ class FakeTelegramResponse:
 
     def read(self):
         return b'{"ok":true}'
+
+
+class CapturePoster:
+    channel = "capture"
+
+    def __init__(self):
+        self.messages = []
+
+    def post(self, message, product):
+        self.messages.append((message, product))
+        return [PostResult(channel=self.channel, success=True, response="ok")]
 
 
 class CoreTests(unittest.TestCase):
@@ -138,6 +149,38 @@ class CoreTests(unittest.TestCase):
             candidates = storage.list_candidates(limit=5, min_score=10)
             self.assertEqual(product_id, candidates[0].id)
             self.assertEqual(candidates[0].title, "Produto teste")
+
+    def test_publish_reposts_old_product_when_no_unpublished_candidates(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = Storage(Path(temp_dir) / "test.db")
+            storage.init_db()
+            product = Product(
+                source="test",
+                external_id="1",
+                title="Produto antigo",
+                price=50,
+                currency="BRL",
+                permalink="https://example.com",
+                affiliate_url="https://example.com",
+                score=99,
+            )
+            product_id = storage.upsert_product(product)
+            storage.add_post(product_id, "telegram:@canal", "sent", "mensagem antiga", "ok")
+            with storage.session() as conn:
+                conn.execute("update posts set posted_at = '2000-01-01T00:00:00+00:00'")
+
+            poster = CapturePoster()
+            publishing = PublishingService(
+                AppConfig(min_score_to_publish=25, repost_after_minutes=8),
+                storage,
+                [poster],
+            )
+
+            sent = publishing.publish(limit=1)
+
+            self.assertEqual(sent, 1)
+            self.assertEqual(len(poster.messages), 1)
+            self.assertEqual(poster.messages[0][1].title, "Produto antigo")
 
     def test_export_store_products_skips_products_without_image(self):
         with tempfile.TemporaryDirectory() as temp_dir:

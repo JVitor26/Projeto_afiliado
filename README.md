@@ -144,7 +144,7 @@ O comando usa as `KEYWORDS` do `.env`. A configuracao padrao foca em tecnologia,
 python -m afiliado_bot auto-mercadolivre --keyword "fone bluetooth" --keyword "smartwatch"
 ```
 
-Por padrao, o bot publica 1 produto a cada 8 minutos (`PUBLISH_LIMIT=1` e `INTERVAL_MINUTES=8`). Para deixar repetindo automaticamente:
+Por padrao, o bot publica 1 produto a cada 8 minutos (`PUBLISH_LIMIT=1`, `INTERVAL_MINUTES=8` e `REPOST_AFTER_MINUTES=8`). Quando nao houver produto novo, ele republica ofertas antigas em rotacao respeitando esse intervalo. Para deixar repetindo automaticamente:
 
 ```powershell
 python -m afiliado_bot auto-mercadolivre --loop
@@ -503,6 +503,7 @@ KEYWORDS=fone bluetooth,smartwatch,air fryer,furadeira,utensilios de cozinha,ace
 ENABLED_SOURCES=mercadolivre,amazon,aliexpress,shopee,manual
 MINE_LIMIT_PER_KEYWORD=10
 PUBLISH_LIMIT=1
+REPOST_AFTER_MINUTES=8
 MIN_SCORE_TO_PUBLISH=25
 SITE_EXPORT_LIMIT=120
 AMAZON_PARTNER_TAG=seu-tag-20
