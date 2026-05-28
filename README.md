@@ -1,0 +1,519 @@
+# Projeto Afiliado Mercado Livre, Shopee, Amazon e AliExpress
+
+Sistema inicial para minerar produtos, ranquear ofertas, gerar mensagens com link de afiliado e publicar automaticamente no Telegram ou em outros canais via webhook.
+
+Importante: "vendas automaticas" aqui significa divulgacao automatica de ofertas com link afiliado. A compra continua acontecendo dentro do Mercado Livre, Shopee, Amazon ou AliExpress, seguindo as regras oficiais de cada programa.
+
+## O que ja vem pronto
+
+- Mineracao por palavras-chave no Mercado Livre usando API HTTP.
+- Conector Shopee por feed JSON/CSV oficial/exportado ou endpoint proprio.
+- Conector Amazon por Creators API/endpoint proprio/feed e PA-API legada.
+- Conector AliExpress por API oficial de afiliados, feed JSON/CSV ou endpoint proprio.
+- Fluxo manual por CSV para filtrar produtos enquanto as APIs nao estao liberadas.
+- Ranking por desconto, preco, frete gratis, vendas, avaliacao e desempenho historico.
+- Banco SQLite com deduplicacao de produtos publicados.
+- Publicacao no Telegram Bot API.
+- Webhook para n8n, Make, Zapier, Meta Graph API proxy ou outras redes.
+- Servidor de redirect `/r/{id}` para medir cliques antes de redirecionar ao link afiliado.
+- Loop de automacao para trazer produtos novos diariamente ou em intervalos menores.
+
+## Configuracao rapida
+
+1. Copie `config.example.env` para `.env`.
+2. Edite `.env` com suas credenciais e nichos.
+3. Rode:
+
+```powershell
+python -m afiliado_bot init-db
+python -m afiliado_bot mine --limit-per-keyword 10
+python -m afiliado_bot publish --limit 3 --dry-run
+```
+
+Quando o preview estiver bom, configure `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_IDS`, depois rode:
+
+```powershell
+python -m afiliado_bot publish --limit 3
+```
+
+## Bot manual sem API
+
+Enquanto Amazon, AliExpress ou Shopee nao liberarem API/feeds, use a planilha manual:
+
+```powershell
+python -m afiliado_bot manual-template
+```
+
+Edite `data/manual_products.csv` e preencha uma linha por produto. Use `approved=yes` para produtos reais que voce quer avaliar. A linha de exemplo vem com `approved=no` e e ignorada.
+
+Campos principais:
+
+- `source`: `amazon`, `aliexpress`, `shopee`, `mercadolivre` ou `manual`.
+- `title`: nome do produto.
+- `price` e `original_price`: preco atual e preco anterior para calcular desconto.
+- `url`: link do produto ou link afiliado.
+- `affiliate_url`: opcional; se preencher, o bot usa esse link direto.
+- `category`, `rating`, `sold_quantity`, `free_shipping`, `commission_rate` e `keywords`: ajudam o bot a ranquear.
+
+Para filtrar e importar somente os produtos que passarem no score minimo:
+
+```powershell
+python -m afiliado_bot manual-import --dry-run
+python -m afiliado_bot manual-import
+python -m afiliado_bot publish --limit 3 --dry-run
+```
+
+O comando gera `data/manual_products.reviewed.csv` com `status`, `reason` e `score`, mostrando exatamente o que foi aprovado, rejeitado ou ficou com score baixo.
+
+Tambem da para colar direto o material promocional do AliExpress e deixar o bot montar o produto:
+
+```powershell
+@"
+Principais recomendações de produtos à venda!
+Fifine microphone dinâmico usb/xlr com controle rgb/jack de fone de ouvido/mudo, microfone para gravação de jogos de pc streaming AmpliGame-AM8
+Agora preço: BRL 243.47 (Preço original: BRL 507.79, 52% desligado)
+Código disponível: FFIL001, BRL16.25 desligado, PST 2026-05-02 22:55:56 ~ 2026-06-30 23:59:59
+Clique e compre: https://s.click.aliexpress.com/e/_c4ODVCG1
+"@ | python -m afiliado_bot promo-add --category "microfone" --dry-run
+```
+
+Quando o preview estiver correto, rode sem `--dry-run`:
+
+```powershell
+@"
+cole aqui o material promocional completo
+"@ | python -m afiliado_bot promo-add --category "microfone"
+python -m afiliado_bot publish --limit 1 --dry-run
+```
+
+Se voce colar apenas um link com `python -m afiliado_bot promo-add --link "https://..."`, o bot tenta completar os dados quando o marketplace permitir. Para Amazon (`amzn.to` ou `amazon.com.br`) e Mercado Livre (`meli.la`), ele abre o link, busca titulo, preco e imagem, e usa "conferir no marketplace" quando algum dado estiver oculto. Para preencher cupom e desconto automaticamente, cole o bloco completo de `Promo Material`.
+
+Para enviar uma oferta escolhida manualmente da Amazon, cole o link curto ou link do produto no `promo-send`. Esse comando salva, atualiza a loja e publica no Telegram quando houver titulo valido; o score fica apenas como informacao, a menos que voce passe `--min-score`.
+
+```powershell
+@"
+https://amzn.to/4wX5gIC
+"@ | python -m afiliado_bot promo-send
+```
+
+Para o formato do Mercado Livre, cole o bloco inteiro. O bot tenta abrir o link `meli.la`, identificar o item, preencher titulo, preco, imagem e categoria, salvar no banco, atualizar a loja e publicar no Telegram:
+
+```powershell
+@"
+Cole este texto no buscador do Mercado Livre: G1Q50T-7TGA
+
+Ou acesse o link:
+https://meli.la/2v6vBf4
+"@ | python -m afiliado_bot promo-send
+```
+
+Nesse fluxo, quando encontra um ID `MLB...`, o bot usa o endpoint publico `https://api.mercadolibre.com/items?ids=MLB...` para completar os dados do produto. Quando o link cai numa pagina social/recomendacoes, ele le o primeiro card da propria pagina como fallback.
+
+Para testar sem salvar nem enviar:
+
+```powershell
+@"
+Cole este texto no buscador do Mercado Livre: G1Q50T-7TGA
+
+Ou acesse o link:
+https://meli.la/2v6vBf4
+"@ | python -m afiliado_bot promo-send --dry-run
+```
+
+Para rodar em loop:
+
+```powershell
+python -m afiliado_bot run
+```
+
+Para automatizar só Mercado Livre sem colar links manualmente, use:
+
+```powershell
+python -m afiliado_bot auto-mercadolivre --dry-run
+```
+
+Quando o preview estiver correto, rode sem `--dry-run` para atualizar `site/products.js` e publicar no Telegram:
+
+```powershell
+python -m afiliado_bot auto-mercadolivre
+```
+
+O comando usa as `KEYWORDS` do `.env`. A configuracao padrao cobre tecnologia, casa, cozinha, eletrodomesticos, ferramentas, moda, beleza, pets e brinquedos. Para buscar nichos especificos nessa execucao:
+
+```powershell
+python -m afiliado_bot auto-mercadolivre --keyword "fone bluetooth" --keyword "smartwatch"
+```
+
+Por padrao, o bot publica 1 produto a cada 15 minutos (`PUBLISH_LIMIT=1` e `INTERVAL_MINUTES=15`). Para deixar repetindo automaticamente:
+
+```powershell
+python -m afiliado_bot auto-mercadolivre --loop
+```
+
+Se minerar produtos mas nao publicar nenhum, reduza o score minimo:
+
+```powershell
+python -m afiliado_bot auto-mercadolivre --min-score 0 --dry-run
+```
+
+Para evitar ofertas fracas, o bot exige imagem por padrao e rejeita produtos com venda baixa quando o marketplace informa esse dado. Ajuste `REQUIRE_PRODUCT_IMAGE`, `MIN_SOLD_QUANTITY` e `MIN_SELLER_TRANSACTIONS` no `.env` se quiser ser mais ou menos rigoroso.
+
+A loja em `site/index.html` separa os produtos por departamento, mostra uma sidebar com categorias detalhadas e oferece filtros por marketplace, preco minimo, preco maximo e frete gratis. Depois de qualquer mineracao, o arquivo `site/products.js` e atualizado para refletir as categorias.
+
+## Telegram
+
+Crie um bot no BotFather, coloque o token em `TELEGRAM_BOT_TOKEN` e informe um ou mais chats/canais em `TELEGRAM_CHAT_IDS`, separados por virgula.
+
+Exemplo:
+
+```env
+TELEGRAM_BOT_TOKEN=123456:ABC
+TELEGRAM_CHAT_IDS=@PromoLinkBrasil99
+```
+
+O bot precisa estar no canal/grupo com permissao para publicar. Para canal publico, use o usuario do canal com `@`, como `@PromoLinkBrasil99`.
+
+## Mercado Livre
+
+O conector usa a busca de itens do Mercado Livre para o site `MLB`. O `ID do aplicativo` e a `Chave secreta` nao sao o access token; eles servem para gerar o token OAuth da sua conta.
+
+Coloque as credenciais do app no `.env`:
+
+```env
+MERCADOLIVRE_CLIENT_ID=seu_id_do_aplicativo
+MERCADOLIVRE_CLIENT_SECRET=sua_chave_secreta
+MERCADOLIVRE_REDIRECT_URI=https://a-mesma-url-cadastrada-no-app
+MERCADOLIVRE_ACCESS_TOKEN=
+MERCADOLIVRE_REFRESH_TOKEN=
+```
+
+Depois gere o link de autorizacao:
+
+```powershell
+python -m afiliado_bot mercadolivre-auth-url
+```
+
+Abra o link no navegador, autorize o app e copie o `code` que aparece na URL de retorno. Troque esse `code` pelo token:
+
+```powershell
+python -m afiliado_bot mercadolivre-token --code "COLE_O_CODE_AQUI"
+```
+
+O comando vai mostrar `MERCADOLIVRE_ACCESS_TOKEN` e `MERCADOLIVRE_REFRESH_TOKEN`. Cole esses valores no `.env`. O access token expira, entao guarde tambem o refresh token.
+
+Para descobrir o seu usuario a partir do token OAuth:
+
+```powershell
+python -m afiliado_bot mercadolivre-me
+```
+
+Esse comando chama `https://api.mercadolibre.com/users/me` usando `MERCADOLIVRE_ACCESS_TOKEN` e mostra `ID`, `Nickname`, `Nome`, `Site` e `Permalink`. Sem access token, esse endpoint nao retorna o seu usuario.
+
+Sem access token, a alternativa e usar um link publico de anuncio seu. Se a API publica do item expuser `seller_id`, o bot mostra esse ID:
+
+```powershell
+python -m afiliado_bot mercadolivre-user-public --link "https://www.mercadolivre.com.br/..."
+```
+
+Tambem funciona colando o bloco promocional:
+
+```powershell
+@"
+Cole este texto no buscador do Mercado Livre: G1Q50T-7TGA
+
+Ou acesse o link:
+https://meli.la/2v6vBf4
+"@ | python -m afiliado_bot mercadolivre-user-public
+```
+
+Observacao: alguns links `meli.la` abrem uma pagina social/recomendacoes. Nesses casos, sem token, o Mercado Livre pode expor apenas nome publico do vendedor, produto e preco, mas nao o `seller_id`.
+
+Na mineracao automatica, o conector tenta consultar tambem `items/{id}` e `users/{seller_id}` para preencher imagem melhor, quantidade vendida, loja oficial e reputacao do vendedor. Esses sinais entram no score e ajudam a evitar anunciantes com uma ou poucas vendas.
+
+Configure o link de afiliado conforme o formato oficial do seu painel/programa:
+
+```env
+MERCADOLIVRE_AFFILIATE_TEMPLATE={url}
+```
+
+Se o programa fornecer um redirect com placeholders, use:
+
+```env
+MERCADOLIVRE_AFFILIATE_ID=seu_id
+MERCADOLIVRE_AFFILIATE_TEMPLATE=https://seu-redirect-oficial.example/?url={encoded_url}&aff={affiliate_id}
+```
+
+## Shopee
+
+Como o acesso afiliado/API da Shopee depende da conta e das credenciais aprovadas, o MVP nao faz scraping. Ele aceita:
+
+- `SHOPEE_FEED_PATH`: arquivo `.json` ou `.csv` exportado/gerado a partir da plataforma oficial.
+- `SHOPEE_PRODUCT_FEED_URL`: endpoint proprio que retorne JSON com produtos/ofertas.
+
+Para a estrutura `ShopeeOfferV2`, o mapeamento usado e:
+
+- `offerName` vira titulo da oferta;
+- `offerLink` vira link afiliado usado no bot e na loja;
+- `originalLink` fica como link original de referencia;
+- `imageUrl` vira imagem da oferta;
+- `commissionRate` entra no ranking;
+- `categoryId`, `collectionId`, `offerType`, `periodStartTime` e `periodEndTime` ficam nos metadados.
+
+Quando a oferta da Shopee nao trouxer preco, a loja e o Telegram mostram `Conferir preço` e enviam o usuario para `offerLink`.
+
+Para endpoint/API, configure:
+
+```env
+SHOPEE_PRODUCT_FEED_URL=https://seu-endpoint-shopee
+SHOPEE_SORT_TYPE=1
+SHOPEE_START_PAGE=1
+```
+
+O sistema envia os parametros `keyword`, `sortType`, `page` e `limit`. Use `SHOPEE_SORT_TYPE=1` para novidades diarias e `SHOPEE_SORT_TYPE=2` para maior comissao.
+
+Campos antigos de feed tambem continuam aceitos: `id`, `item_id`, `product_id`, `title`, `name`, `price`, `original_price`, `url`, `link`, `image_url`, `category`, `rating`, `sold_quantity`, `free_shipping`.
+
+Para testar apenas com o feed exemplo da Shopee:
+
+```powershell
+$env:ENABLED_SOURCES="shopee"
+$env:SHOPEE_FEED_PATH="data/shopee_products.example.json"
+$env:KEYWORDS="fone bluetooth"
+python -m afiliado_bot mine --limit-per-keyword 5
+python -m afiliado_bot publish --limit 1 --dry-run
+```
+
+Nao use o arquivo `data/shopee_products.example.json` para publicar no Telegram; ele tem links ficticios e serve apenas para teste local.
+
+## Amazon
+
+A Amazon esta habilitada no minerador quando `amazon` estiver em `ENABLED_SOURCES` e pelo menos uma destas entradas estiver configurada:
+
+- `AMAZON_CREATORS_CREDENTIAL_ID`, `AMAZON_CREATORS_CREDENTIAL_SECRET`, `AMAZON_CREATORS_VERSION` e `AMAZON_PARTNER_TAG`: Creators API oficial.
+- `AMAZON_CREATORS_API_URL`: endpoint/proxy proprio da Creators API que retorne JSON.
+- `AMAZON_PRODUCT_FEED_URL`: endpoint proprio que retorne JSON com produtos/ofertas.
+- `AMAZON_FEED_PATH`: arquivo `.json` ou `.csv` exportado.
+- `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY` e `AMAZON_PARTNER_TAG`: modo PA-API legado.
+
+No painel da Amazon Creators API, copie `Credential ID`, `Credential Secret` e `Version`. Coloque no `.env`:
+
+```env
+ENABLED_SOURCES=mercadolivre,shopee,amazon,aliexpress
+AMAZON_MODE=auto
+AMAZON_PARTNER_TAG=seu-tag-20
+AMAZON_CREATORS_CREDENTIAL_ID=seu_credential_id
+AMAZON_CREATORS_CREDENTIAL_SECRET=seu_credential_secret
+AMAZON_CREATORS_VERSION=3.1
+AMAZON_MARKETPLACE=www.amazon.com.br
+AMAZON_AFFILIATE_TEMPLATE={url}
+```
+
+Teste as credenciais sem publicar:
+
+```powershell
+python -m afiliado_bot amazon-creators-test --keyword "fone bluetooth"
+```
+
+Para fazer igual ao Mercado Livre, minerando automaticamente, atualizando o site e publicando no Telegram:
+
+```powershell
+python -m afiliado_bot auto-amazon --dry-run
+python -m afiliado_bot auto-amazon --limit-per-keyword 3 --publish-limit 5
+```
+
+Para deixar em loop:
+
+```powershell
+python -m afiliado_bot auto-amazon --loop
+```
+
+O modo `auto` tenta Creators API, depois PA-API se as credenciais existirem, e por ultimo feed/export. Para feed local de teste:
+
+```powershell
+$env:ENABLED_SOURCES="amazon"
+$env:AMAZON_FEED_PATH="data/amazon_products.example.json"
+$env:AMAZON_PARTNER_TAG="seu-tag-20"
+$env:AMAZON_AFFILIATE_TEMPLATE="{url}?tag={affiliate_id}"
+python -m afiliado_bot mine --keyword "fone bluetooth" --limit-per-keyword 5
+python -m afiliado_bot publish --limit 1 --dry-run
+```
+
+## AliExpress
+
+O AliExpress tambem fica ativo quando `aliexpress` estiver em `ENABLED_SOURCES` e voce configurar API, endpoint ou feed:
+
+- API oficial: `ALIEXPRESS_APP_KEY`, `ALIEXPRESS_APP_SECRET` e `ALIEXPRESS_TRACKING_ID`.
+- Endpoint proprio: `ALIEXPRESS_PRODUCT_FEED_URL`, recebendo `keyword`, `q`, `page`, `limit` e `tracking_id`.
+- Feed/export local: `ALIEXPRESS_FEED_PATH`.
+
+Exemplo com API oficial:
+
+```env
+ALIEXPRESS_MODE=auto
+ALIEXPRESS_APP_KEY=sua_app_key
+ALIEXPRESS_APP_SECRET=seu_app_secret
+ALIEXPRESS_TRACKING_ID=seu_tracking_id
+ALIEXPRESS_TARGET_CURRENCY=BRL
+ALIEXPRESS_TARGET_LANGUAGE=PT
+ALIEXPRESS_SHIP_TO_COUNTRY=BR
+```
+
+Para teste local sem credenciais:
+
+```powershell
+$env:ENABLED_SOURCES="aliexpress"
+$env:ALIEXPRESS_FEED_PATH="data/aliexpress_products.example.json"
+python -m afiliado_bot mine --keyword "smartwatch" --limit-per-keyword 5
+python -m afiliado_bot publish --limit 1 --dry-run
+```
+
+Nao publique os arquivos `data/amazon_products.example.json` e `data/aliexpress_products.example.json` como campanha real; eles servem apenas para validar o fluxo local.
+
+## Outras redes
+
+Use `SOCIAL_WEBHOOK_URLS` para integrar com fluxos externos. O sistema envia JSON com `message` e `product`.
+
+Exemplo:
+
+```env
+SOCIAL_WEBHOOK_URLS=https://seu-n8n/webhook/ofertas
+```
+
+Para Instagram/Facebook/WhatsApp, o caminho correto e usar APIs oficiais ou um fluxo n8n/Make com suas credenciais aprovadas.
+
+### Canal do WhatsApp
+
+O canal publico foi ligado na loja como atalho:
+
+```text
+https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
+```
+
+A WhatsApp Cloud API oficial envia mensagens para numeros de telefone de usuarios, nao para links de Canal do WhatsApp. Para automacao pelo bot, use `WHATSAPP_CHAT_IDS` somente com numeros com codigo do pais, ou use `SOCIAL_WEBHOOK_URLS` com um provedor externo que tenha suporte aprovado para publicar em canais.
+
+## Medir cliques
+
+Se voce tiver um dominio publico apontando para a maquina/servidor, configure:
+
+```env
+PUBLIC_BASE_URL=https://ofertas.seudominio.com
+```
+
+Suba o redirect:
+
+```powershell
+python -m afiliado_bot serve --host 0.0.0.0 --port 8080
+```
+
+As mensagens usarao `https://ofertas.seudominio.com/r/{id}` e o sistema registrara eventos de clique no SQLite.
+
+Tambem da para registrar venda manualmente:
+
+```powershell
+python -m afiliado_bot record-event --product-id 1 --event sale --channel mercado-livre
+```
+
+Esses eventos aumentam o peso das categorias que mais convertem.
+
+## Estatisticas
+
+```powershell
+python -m afiliado_bot stats
+```
+
+## Loja online Lúmina Prime
+
+O projeto tambem inclui uma loja estatica premium em `site/index.html`. Ela usa os produtos do banco exportados para `site/products.js`.
+
+Depois de minerar produtos, atualize a vitrine:
+
+```powershell
+python -m afiliado_bot export-site
+```
+
+Abra no navegador:
+
+```text
+C:\Users\ADM\OneDrive\Documentos\Projeto_afiliado\site\index.html
+```
+
+A loja inclui:
+
+- busca por produto, categoria ou marketplace;
+- filtros por Mercado Livre, Shopee, Amazon, AliExpress e favoritos;
+- ordenacao por curadoria, desconto e preco;
+- cards com imagem, preco, desconto, frete, avaliacao e vendidos;
+- gaveta de detalhes do produto;
+- favoritos salvos no navegador;
+- atalho para o canal publico do WhatsApp;
+- botao de compra apontando para o link afiliado/exportado.
+
+## Rodar sem deixar o computador ligado
+
+Este projeto ja inclui um agendador em `.github/workflows/affiliate-automation.yml` para rodar no GitHub Actions. Ele faz, a cada 30 minutos:
+
+1. restaura o banco SQLite do bot pelo cache do GitHub Actions;
+2. roda os testes;
+3. minera ofertas com `python -m afiliado_bot mine`;
+4. publica no Telegram com `python -m afiliado_bot publish`;
+5. exporta a loja com `python -m afiliado_bot export-site`;
+6. publica a pasta `site` no GitHub Pages.
+
+Para ativar:
+
+1. Envie o projeto para um repositorio no GitHub.
+2. No GitHub, va em `Settings > Pages` e selecione `GitHub Actions` como origem.
+3. No GitHub, va em `Settings > Secrets and variables > Actions`.
+4. Em `Secrets`, cadastre no minimo:
+
+```text
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_IDS
+```
+
+Use `TELEGRAM_CHAT_IDS` com o canal/grupo, por exemplo `@PromoLinkBrasil99`. O bot precisa estar nesse canal/grupo com permissao para publicar.
+
+Cadastre tambem os secrets das lojas que voce for usar:
+
+```text
+MERCADOLIVRE_ACCESS_TOKEN
+MERCADOLIVRE_REFRESH_TOKEN
+AMAZON_CREATORS_CREDENTIAL_ID
+AMAZON_CREATORS_CREDENTIAL_SECRET
+AMAZON_ACCESS_KEY
+AMAZON_SECRET_KEY
+ALIEXPRESS_APP_KEY
+ALIEXPRESS_APP_SECRET
+SHOPEE_AUTHORIZATION_HEADER
+WHATSAPP_ACCESS_TOKEN
+WHATSAPP_PHONE_NUMBER_ID
+WHATSAPP_CHAT_IDS
+```
+
+Em `Variables`, voce pode ajustar a automacao sem mexer no codigo:
+
+```text
+KEYWORDS=fone bluetooth,smartwatch,air fryer
+ENABLED_SOURCES=mercadolivre,amazon,aliexpress,shopee,manual
+MINE_LIMIT_PER_KEYWORD=10
+PUBLISH_LIMIT=1
+MIN_SCORE_TO_PUBLISH=25
+SITE_EXPORT_LIMIT=120
+AMAZON_PARTNER_TAG=seu-tag-20
+AMAZON_AFFILIATE_TEMPLATE={url}?tag={affiliate_id}
+MERCADOLIVRE_AFFILIATE_TEMPLATE={url}
+ALIEXPRESS_TRACKING_ID=seu_tracking_id
+WHATSAPP_GRAPH_API_VERSION=v25.0
+```
+
+Depois disso, abra a aba `Actions`, escolha `Agendador Afiliado` e rode manualmente uma vez. Se quiser testar sem publicar no Telegram, use `Run workflow` com `dry_run=true`.
+
+Observacao: GitHub Actions nao e servidor 24h. Ele e bom para tarefas agendadas, como postar ofertas de tempos em tempos. O site funciona no GitHub Pages porque e estatico. Ja o servidor Python `python -m afiliado_bot serve`, usado para `/r/{id}` e medicao de cliques, precisa de uma hospedagem com processo continuo, como VPS, Render, Railway ou Fly.io.
+
+## Proximos passos recomendados
+
+- Ligar os endpoints oficiais/proxies aprovados de cada marketplace quando suas credenciais estiverem disponiveis.
+- Criar dashboard web para aprovar/rejeitar ofertas antes da publicacao.
+- Adicionar encurtador oficial, UTM e tags por canal.
+- Hospedar o redirect em VPS para medir cliques reais.
+- Criar tarefas no Agendador do Windows para rodar `mine` e `publish` em horarios fixos.

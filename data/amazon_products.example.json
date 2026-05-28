@@ -1,0 +1,16 @@
+{
+  "products": [
+    {
+      "asin": "B0TEST123",
+      "title": "Fone Bluetooth Amazon Premium",
+      "price": "129.90",
+      "original_price": "199.90",
+      "url": "https://www.amazon.com.br/dp/B0TEST123",
+      "image_url": "https://m.media-amazon.com/images/I/demo.jpg",
+      "category": "fone bluetooth",
+      "rating": "4.7",
+      "review_count": "150",
+      "prime": "true"
+    }
+  ]
+}

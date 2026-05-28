@@ -1,0 +1,250 @@
+name: Agendador Afiliado
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Rodar sem enviar para o Telegram"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # GitHub usa UTC. Este agendamento roda a cada 30 minutos.
+    - cron: "*/30 * * * *"
+
+concurrency:
+  group: afiliado-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  automacao:
+    name: Minerar, publicar e atualizar site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      DATABASE_PATH: data/affiliate.db
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+      MERCADOLIVRE_CLIENT_ID: ${{ secrets.MERCADOLIVRE_CLIENT_ID }}
+      MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+      MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
+      MERCADOLIVRE_REFRESH_TOKEN: ${{ secrets.MERCADOLIVRE_REFRESH_TOKEN }}
+      SHOPEE_AUTHORIZATION_HEADER: ${{ secrets.SHOPEE_AUTHORIZATION_HEADER }}
+      AMAZON_AUTHORIZATION_HEADER: ${{ secrets.AMAZON_AUTHORIZATION_HEADER }}
+      AMAZON_CREATORS_CREDENTIAL_ID: ${{ secrets.AMAZON_CREATORS_CREDENTIAL_ID }}
+      AMAZON_CREATORS_CREDENTIAL_SECRET: ${{ secrets.AMAZON_CREATORS_CREDENTIAL_SECRET }}
+      AMAZON_ACCESS_KEY: ${{ secrets.AMAZON_ACCESS_KEY }}
+      AMAZON_SECRET_KEY: ${{ secrets.AMAZON_SECRET_KEY }}
+      ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+      ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+      SOCIAL_WEBHOOK_URLS: ${{ secrets.SOCIAL_WEBHOOK_URLS }}
+      WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+      WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+      WHATSAPP_CHAT_IDS: ${{ secrets.WHATSAPP_CHAT_IDS }}
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Aplicar variaveis opcionais
+        shell: bash
+        env:
+          V_PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          V_KEYWORDS: ${{ vars.KEYWORDS }}
+          V_DENY_KEYWORDS: ${{ vars.DENY_KEYWORDS }}
+          V_ENABLED_SOURCES: ${{ vars.ENABLED_SOURCES }}
+          V_MIN_PRICE: ${{ vars.MIN_PRICE }}
+          V_MAX_PRICE: ${{ vars.MAX_PRICE }}
+          V_MIN_DISCOUNT_PERCENT: ${{ vars.MIN_DISCOUNT_PERCENT }}
+          V_MIN_SCORE_TO_PUBLISH: ${{ vars.MIN_SCORE_TO_PUBLISH }}
+          V_REQUIRE_PRODUCT_IMAGE: ${{ vars.REQUIRE_PRODUCT_IMAGE }}
+          V_MIN_SOLD_QUANTITY: ${{ vars.MIN_SOLD_QUANTITY }}
+          V_MIN_SELLER_TRANSACTIONS: ${{ vars.MIN_SELLER_TRANSACTIONS }}
+          V_MINE_LIMIT_PER_KEYWORD: ${{ vars.MINE_LIMIT_PER_KEYWORD }}
+          V_PUBLISH_LIMIT: ${{ vars.PUBLISH_LIMIT }}
+          V_SITE_EXPORT_LIMIT: ${{ vars.SITE_EXPORT_LIMIT }}
+          V_MERCADOLIVRE_SITE_ID: ${{ vars.MERCADOLIVRE_SITE_ID }}
+          V_MERCADOLIVRE_REDIRECT_URI: ${{ vars.MERCADOLIVRE_REDIRECT_URI }}
+          V_MERCADOLIVRE_AFFILIATE_ID: ${{ vars.MERCADOLIVRE_AFFILIATE_ID }}
+          V_MERCADOLIVRE_AFFILIATE_TEMPLATE: ${{ vars.MERCADOLIVRE_AFFILIATE_TEMPLATE }}
+          V_SHOPEE_PRODUCT_FEED_URL: ${{ vars.SHOPEE_PRODUCT_FEED_URL }}
+          V_SHOPEE_FEED_PATH: ${{ vars.SHOPEE_FEED_PATH }}
+          V_SHOPEE_AFFILIATE_ID: ${{ vars.SHOPEE_AFFILIATE_ID }}
+          V_SHOPEE_AFFILIATE_TEMPLATE: ${{ vars.SHOPEE_AFFILIATE_TEMPLATE }}
+          V_SHOPEE_SORT_TYPE: ${{ vars.SHOPEE_SORT_TYPE }}
+          V_SHOPEE_START_PAGE: ${{ vars.SHOPEE_START_PAGE }}
+          V_AMAZON_MODE: ${{ vars.AMAZON_MODE }}
+          V_AMAZON_PRODUCT_FEED_URL: ${{ vars.AMAZON_PRODUCT_FEED_URL }}
+          V_AMAZON_FEED_PATH: ${{ vars.AMAZON_FEED_PATH }}
+          V_AMAZON_CREATORS_API_URL: ${{ vars.AMAZON_CREATORS_API_URL }}
+          V_AMAZON_CREATORS_VERSION: ${{ vars.AMAZON_CREATORS_VERSION }}
+          V_AMAZON_CREATORS_TOKEN_URL: ${{ vars.AMAZON_CREATORS_TOKEN_URL }}
+          V_AMAZON_PARTNER_TAG: ${{ vars.AMAZON_PARTNER_TAG }}
+          V_AMAZON_PARTNER_TYPE: ${{ vars.AMAZON_PARTNER_TYPE }}
+          V_AMAZON_HOST: ${{ vars.AMAZON_HOST }}
+          V_AMAZON_REGION: ${{ vars.AMAZON_REGION }}
+          V_AMAZON_MARKETPLACE: ${{ vars.AMAZON_MARKETPLACE }}
+          V_AMAZON_SEARCH_INDEX: ${{ vars.AMAZON_SEARCH_INDEX }}
+          V_AMAZON_AFFILIATE_TEMPLATE: ${{ vars.AMAZON_AFFILIATE_TEMPLATE }}
+          V_ALIEXPRESS_MODE: ${{ vars.ALIEXPRESS_MODE }}
+          V_ALIEXPRESS_PRODUCT_FEED_URL: ${{ vars.ALIEXPRESS_PRODUCT_FEED_URL }}
+          V_ALIEXPRESS_FEED_PATH: ${{ vars.ALIEXPRESS_FEED_PATH }}
+          V_ALIEXPRESS_API_URL: ${{ vars.ALIEXPRESS_API_URL }}
+          V_ALIEXPRESS_TRACKING_ID: ${{ vars.ALIEXPRESS_TRACKING_ID }}
+          V_ALIEXPRESS_AFFILIATE_TEMPLATE: ${{ vars.ALIEXPRESS_AFFILIATE_TEMPLATE }}
+          V_ALIEXPRESS_SIGN_METHOD: ${{ vars.ALIEXPRESS_SIGN_METHOD }}
+          V_ALIEXPRESS_TARGET_CURRENCY: ${{ vars.ALIEXPRESS_TARGET_CURRENCY }}
+          V_ALIEXPRESS_TARGET_LANGUAGE: ${{ vars.ALIEXPRESS_TARGET_LANGUAGE }}
+          V_ALIEXPRESS_SHIP_TO_COUNTRY: ${{ vars.ALIEXPRESS_SHIP_TO_COUNTRY }}
+          V_ALIEXPRESS_SORT: ${{ vars.ALIEXPRESS_SORT }}
+          V_ALIEXPRESS_START_PAGE: ${{ vars.ALIEXPRESS_START_PAGE }}
+          V_ALIEXPRESS_FIELDS: ${{ vars.ALIEXPRESS_FIELDS }}
+          V_TELEGRAM_PARSE_MODE: ${{ vars.TELEGRAM_PARSE_MODE }}
+          V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW: ${{ vars.TELEGRAM_DISABLE_WEB_PAGE_PREVIEW }}
+          V_WHATSAPP_GRAPH_API_VERSION: ${{ vars.WHATSAPP_GRAPH_API_VERSION }}
+        run: |
+          set -euo pipefail
+
+          add_env() {
+            local key="$1"
+            local value="$2"
+            if [ -n "$value" ]; then
+              {
+                echo "$key<<EOF"
+                echo "$value"
+                echo "EOF"
+              } >> "$GITHUB_ENV"
+            fi
+          }
+
+          add_env PUBLIC_BASE_URL "$V_PUBLIC_BASE_URL"
+          add_env KEYWORDS "$V_KEYWORDS"
+          add_env DENY_KEYWORDS "$V_DENY_KEYWORDS"
+          add_env ENABLED_SOURCES "$V_ENABLED_SOURCES"
+          add_env MIN_PRICE "$V_MIN_PRICE"
+          add_env MAX_PRICE "$V_MAX_PRICE"
+          add_env MIN_DISCOUNT_PERCENT "$V_MIN_DISCOUNT_PERCENT"
+          add_env MIN_SCORE_TO_PUBLISH "$V_MIN_SCORE_TO_PUBLISH"
+          add_env REQUIRE_PRODUCT_IMAGE "$V_REQUIRE_PRODUCT_IMAGE"
+          add_env MIN_SOLD_QUANTITY "$V_MIN_SOLD_QUANTITY"
+          add_env MIN_SELLER_TRANSACTIONS "$V_MIN_SELLER_TRANSACTIONS"
+          add_env MINE_LIMIT_PER_KEYWORD "$V_MINE_LIMIT_PER_KEYWORD"
+          add_env PUBLISH_LIMIT "$V_PUBLISH_LIMIT"
+          add_env SITE_EXPORT_LIMIT "$V_SITE_EXPORT_LIMIT"
+          add_env MERCADOLIVRE_SITE_ID "$V_MERCADOLIVRE_SITE_ID"
+          add_env MERCADOLIVRE_REDIRECT_URI "$V_MERCADOLIVRE_REDIRECT_URI"
+          add_env MERCADOLIVRE_AFFILIATE_ID "$V_MERCADOLIVRE_AFFILIATE_ID"
+          add_env MERCADOLIVRE_AFFILIATE_TEMPLATE "$V_MERCADOLIVRE_AFFILIATE_TEMPLATE"
+          add_env SHOPEE_PRODUCT_FEED_URL "$V_SHOPEE_PRODUCT_FEED_URL"
+          add_env SHOPEE_FEED_PATH "$V_SHOPEE_FEED_PATH"
+          add_env SHOPEE_AFFILIATE_ID "$V_SHOPEE_AFFILIATE_ID"
+          add_env SHOPEE_AFFILIATE_TEMPLATE "$V_SHOPEE_AFFILIATE_TEMPLATE"
+          add_env SHOPEE_SORT_TYPE "$V_SHOPEE_SORT_TYPE"
+          add_env SHOPEE_START_PAGE "$V_SHOPEE_START_PAGE"
+          add_env AMAZON_MODE "$V_AMAZON_MODE"
+          add_env AMAZON_PRODUCT_FEED_URL "$V_AMAZON_PRODUCT_FEED_URL"
+          add_env AMAZON_FEED_PATH "$V_AMAZON_FEED_PATH"
+          add_env AMAZON_CREATORS_API_URL "$V_AMAZON_CREATORS_API_URL"
+          add_env AMAZON_CREATORS_VERSION "$V_AMAZON_CREATORS_VERSION"
+          add_env AMAZON_CREATORS_TOKEN_URL "$V_AMAZON_CREATORS_TOKEN_URL"
+          add_env AMAZON_PARTNER_TAG "$V_AMAZON_PARTNER_TAG"
+          add_env AMAZON_PARTNER_TYPE "$V_AMAZON_PARTNER_TYPE"
+          add_env AMAZON_HOST "$V_AMAZON_HOST"
+          add_env AMAZON_REGION "$V_AMAZON_REGION"
+          add_env AMAZON_MARKETPLACE "$V_AMAZON_MARKETPLACE"
+          add_env AMAZON_SEARCH_INDEX "$V_AMAZON_SEARCH_INDEX"
+          add_env AMAZON_AFFILIATE_TEMPLATE "$V_AMAZON_AFFILIATE_TEMPLATE"
+          add_env ALIEXPRESS_MODE "$V_ALIEXPRESS_MODE"
+          add_env ALIEXPRESS_PRODUCT_FEED_URL "$V_ALIEXPRESS_PRODUCT_FEED_URL"
+          add_env ALIEXPRESS_FEED_PATH "$V_ALIEXPRESS_FEED_PATH"
+          add_env ALIEXPRESS_API_URL "$V_ALIEXPRESS_API_URL"
+          add_env ALIEXPRESS_TRACKING_ID "$V_ALIEXPRESS_TRACKING_ID"
+          add_env ALIEXPRESS_AFFILIATE_TEMPLATE "$V_ALIEXPRESS_AFFILIATE_TEMPLATE"
+          add_env ALIEXPRESS_SIGN_METHOD "$V_ALIEXPRESS_SIGN_METHOD"
+          add_env ALIEXPRESS_TARGET_CURRENCY "$V_ALIEXPRESS_TARGET_CURRENCY"
+          add_env ALIEXPRESS_TARGET_LANGUAGE "$V_ALIEXPRESS_TARGET_LANGUAGE"
+          add_env ALIEXPRESS_SHIP_TO_COUNTRY "$V_ALIEXPRESS_SHIP_TO_COUNTRY"
+          add_env ALIEXPRESS_SORT "$V_ALIEXPRESS_SORT"
+          add_env ALIEXPRESS_START_PAGE "$V_ALIEXPRESS_START_PAGE"
+          add_env ALIEXPRESS_FIELDS "$V_ALIEXPRESS_FIELDS"
+          add_env TELEGRAM_PARSE_MODE "$V_TELEGRAM_PARSE_MODE"
+          add_env TELEGRAM_DISABLE_WEB_PAGE_PREVIEW "$V_TELEGRAM_DISABLE_WEB_PAGE_PREVIEW"
+          add_env WHATSAPP_GRAPH_API_VERSION "$V_WHATSAPP_GRAPH_API_VERSION"
+
+      - name: Restaurar banco do bot
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/affiliate.db
+            data/affiliate.db-shm
+            data/affiliate.db-wal
+          key: afiliado-db-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            afiliado-db-
+
+      - name: Rodar testes
+        run: python -m unittest discover -s tests
+
+      - name: Conferir credenciais Telegram
+        if: env.DRY_RUN != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_IDS:-}" ]; then
+            echo "::error::Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_IDS nos Secrets do repositorio."
+            exit 1
+          fi
+
+      - name: Minerar, publicar e exportar loja
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m afiliado_bot init-db
+          python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}" --dry-run
+          else
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}"
+          fi
+
+          python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}"
+          python -m afiliado_bot stats
+
+      - name: Salvar banco do bot
+        if: env.DRY_RUN != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/affiliate.db
+            data/affiliate.db-shm
+            data/affiliate.db-wal
+          key: afiliado-db-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Configurar GitHub Pages
+        if: env.DRY_RUN != 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Enviar site estatico
+        if: env.DRY_RUN != 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publicar GitHub Pages
+        id: deployment
+        if: env.DRY_RUN != 'true'
+        uses: actions/deploy-pages@v4

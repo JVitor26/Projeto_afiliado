@@ -1,0 +1,9 @@
+[project]
+name = "projeto-afiliado"
+version = "0.1.0"
+description = "Sistema de mineracao e publicacao automatica de ofertas afiliadas."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

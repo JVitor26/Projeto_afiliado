@@ -1,0 +1,18 @@
+{
+  "products": [
+    {
+      "product_id": "100500123",
+      "product_title": "Smartwatch AliExpress Premium",
+      "product_main_image_url": "https://ae01.alicdn.com/kf/demo.jpg",
+      "product_detail_url": "https://www.aliexpress.com/item/100500123.html",
+      "promotion_link": "https://s.click.aliexpress.com/e/_demo",
+      "target_sale_price": "89.90",
+      "target_original_price": "129.90",
+      "target_sale_price_currency": "BRL",
+      "commission_rate": "7%",
+      "evaluate_rate": "96%",
+      "lastest_volume": "230",
+      "first_level_category_name": "smartwatch"
+    }
+  ]
+}

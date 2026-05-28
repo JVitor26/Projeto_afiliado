@@ -1,0 +1,21 @@
+{
+  "nodes": [
+    {
+      "commissionRate": "0.0123",
+      "imageUrl": "",
+      "offerLink": "https://shopee.com.br/oferta-afiliada-demo",
+      "originalLink": "https://shopee.com.br/oferta-original-demo",
+      "offerName": "Fone Bluetooth com cancelamento de ruido",
+      "offerType": 2,
+      "categoryId": 100013,
+      "collectionId": 0,
+      "periodStartTime": 1779840000,
+      "periodEndTime": 1782432000
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "limit": 10,
+    "hasNextPage": false
+  }
+}

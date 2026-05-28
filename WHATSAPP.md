@@ -1,0 +1,62 @@
+# Integracao com WhatsApp
+
+## Canal atual
+
+O canal informado foi adicionado como link publico da loja:
+
+```text
+https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w
+```
+
+A API oficial WhatsApp Cloud API envia mensagens para numeros de telefone de usuarios pelo recurso de numero comercial. Ela nao aceita esse link de Canal do WhatsApp como destinatario direto. Por isso, nao coloque `https://whatsapp.com/channel/...` em `WHATSAPP_CHAT_IDS`.
+
+## Opcao 1: WhatsApp Cloud API
+
+Use esta opcao para enviar ofertas para numeros de telefone com opt-in, usando a API oficial da Meta.
+
+### Setup
+
+1. Acesse o Meta Business e configure WhatsApp Business Platform.
+2. Copie suas credenciais:
+   - `WHATSAPP_ACCESS_TOKEN`: token de acesso.
+   - `WHATSAPP_PHONE_NUMBER_ID`: ID do numero comercial.
+3. Informe os destinatarios em `WHATSAPP_CHAT_IDS`, sempre com codigo do pais.
+
+### Configurar no `.env`
+
+```env
+WHATSAPP_ACCESS_TOKEN=seu_access_token_aqui
+WHATSAPP_PHONE_NUMBER_ID=seu_phone_number_id
+WHATSAPP_CHAT_IDS=55XXXXXXXXXXX
+WHATSAPP_GRAPH_API_VERSION=v25.0
+```
+
+Para mais de um destinatario:
+
+```env
+WHATSAPP_CHAT_IDS=5511999999999,5565999999999
+```
+
+### Testar
+
+```bash
+echo "https://amzn.to/SEU_LINK" | python -m afiliado_bot link-offer
+```
+
+## Opcao 2: Webhook externo
+
+Use `SOCIAL_WEBHOOK_URLS` para enviar a oferta para um fluxo externo como n8n, Make ou outro provedor aprovado.
+
+```env
+SOCIAL_WEBHOOK_URLS=https://seu-n8n-webhook-url
+```
+
+O bot envia JSON com `message` e `product`. Se o provedor que voce escolher tiver uma integracao legitima com Canal do WhatsApp, ele deve receber esse webhook e fazer a publicacao por la.
+
+## Qual escolher?
+
+| Cenario | Configuracao |
+|---------|--------------|
+| Link para usuarios entrarem no canal | Ja esta no site |
+| Enviar para numeros autorizados | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_CHAT_IDS` |
+| Publicar em Canal do WhatsApp | Use um provedor/webhook que ofereca suporte oficial ou aprovado |
