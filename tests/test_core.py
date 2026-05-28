@@ -10,6 +10,7 @@ from afiliado_bot.cli import (
     display_category_for_product,
     export_store_products,
     import_site_products,
+    refresh_mercadolivre_token,
 )
 from afiliado_bot.clients.aliexpress import AliExpressClient
 from afiliado_bot.clients.amazon import AmazonClient
@@ -70,6 +71,32 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(query["client_id"], ["123456"])
         self.assertEqual(query["redirect_uri"], ["https://example.com/callback"])
         self.assertEqual(query["state"], ["teste"])
+
+    def test_mercadolivre_refresh_token_uses_refresh_grant(self):
+        captured = {}
+
+        class FakeTokenResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b'{"access_token":"novo-access","refresh_token":"novo-refresh","expires_in":21600}'
+
+        def fake_urlopen(request, timeout):
+            captured["data"] = parse_qs(request.data.decode("utf-8"))
+            return FakeTokenResponse()
+
+        with patch("afiliado_bot.cli.urlopen", fake_urlopen):
+            payload = refresh_mercadolivre_token("app-id", "secret", "refresh-atual")
+
+        self.assertEqual(captured["data"]["grant_type"], ["refresh_token"])
+        self.assertEqual(captured["data"]["client_id"], ["app-id"])
+        self.assertEqual(captured["data"]["client_secret"], ["secret"])
+        self.assertEqual(captured["data"]["refresh_token"], ["refresh-atual"])
+        self.assertEqual(payload["access_token"], "novo-access")
 
     def test_display_category_prefers_readable_category_for_store(self):
         product = Product(

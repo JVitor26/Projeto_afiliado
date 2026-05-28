@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -49,6 +50,16 @@ def main(argv: list[str] | None = None) -> int:
     ml_token_parser.add_argument("--code", required=True, help="codigo recebido na URL de retorno")
     ml_token_parser.add_argument("--redirect-uri", help="mesma URL usada no mercadolivre-auth-url")
     ml_token_parser.add_argument("--code-verifier", help="use somente se o app estiver com PKCE habilitado")
+
+    ml_refresh_parser = subparsers.add_parser(
+        "mercadolivre-refresh-token",
+        help="renova o access token Mercado Livre usando MERCADOLIVRE_REFRESH_TOKEN",
+    )
+    ml_refresh_parser.add_argument(
+        "--github-env",
+        action="store_true",
+        help="grava os tokens renovados no arquivo GITHUB_ENV sem imprimir os valores",
+    )
 
     ml_public_parser = subparsers.add_parser(
         "mercadolivre-user-public",
@@ -267,6 +278,42 @@ def main(argv: list[str] | None = None) -> int:
         if token_payload.get("refresh_token"):
             print(f"MERCADOLIVRE_REFRESH_TOKEN={token_payload.get('refresh_token')}")
         print(f"MERCADOLIVRE_USER_ID={token_payload.get('user_id') or ''}")
+        print(f"Expira em segundos: {token_payload.get('expires_in') or ''}")
+        return 0
+
+    if args.command == "mercadolivre-refresh-token":
+        if not config.mercadolivre_client_id:
+            print("MERCADOLIVRE_CLIENT_ID nao configurado.")
+            return 2
+        if not config.mercadolivre_client_secret:
+            print("MERCADOLIVRE_CLIENT_SECRET nao configurado.")
+            return 2
+        if not config.mercadolivre_refresh_token:
+            print("MERCADOLIVRE_REFRESH_TOKEN nao configurado.")
+            return 2
+        try:
+            token_payload = refresh_mercadolivre_token(
+                config.mercadolivre_client_id,
+                config.mercadolivre_client_secret,
+                config.mercadolivre_refresh_token,
+            )
+        except RuntimeError as exc:
+            print(f"Erro Mercado Livre: {exc}")
+            return 2
+        if args.github_env:
+            github_env = os.getenv("GITHUB_ENV", "")
+            if not github_env:
+                print("GITHUB_ENV nao esta disponivel.")
+                return 2
+            _append_github_env(github_env, "MERCADOLIVRE_ACCESS_TOKEN", str(token_payload.get("access_token") or ""))
+            if token_payload.get("refresh_token"):
+                _append_github_env(github_env, "MERCADOLIVRE_REFRESH_TOKEN", str(token_payload["refresh_token"]))
+            print("Tokens Mercado Livre renovados no GITHUB_ENV.")
+            return 0
+        print("Cole estes valores no seu .env e nos GitHub Actions secrets:")
+        print(f"MERCADOLIVRE_ACCESS_TOKEN={token_payload.get('access_token') or ''}")
+        if token_payload.get("refresh_token"):
+            print(f"MERCADOLIVRE_REFRESH_TOKEN={token_payload.get('refresh_token')}")
         print(f"Expira em segundos: {token_payload.get('expires_in') or ''}")
         return 0
 
@@ -649,6 +696,41 @@ def exchange_mercadolivre_code(
     if not isinstance(payload, dict):
         raise RuntimeError("resposta invalida da API")
     return payload
+
+
+def refresh_mercadolivre_token(client_id: str, client_secret: str, refresh_token: str) -> dict[str, object]:
+    form = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+    }
+    request = Request(
+        "https://api.mercadolibre.com/oauth/token",
+        data=urlencode(form).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "content-type": "application/x-www-form-urlencoded",
+            "User-Agent": "afiliado-bot/0.1",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {body[:300]}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"erro de conexao: {exc.reason}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("resposta invalida da API")
+    return payload
+
+
+def _append_github_env(github_env: str, key: str, value: str) -> None:
+    with Path(github_env).open("a", encoding="utf-8") as file:
+        file.write(f"{key}<<EOF\n{value}\nEOF\n")
 
 
 def fetch_mercadolivre_me(token: str) -> dict[str, object]:

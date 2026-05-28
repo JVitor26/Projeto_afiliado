@@ -266,6 +266,9 @@ jobs:
         run: |
           set -euo pipefail
           python -m afiliado_bot init-db
+          if [ -n "${MERCADOLIVRE_CLIENT_ID:-}" ] && [ -n "${MERCADOLIVRE_CLIENT_SECRET:-}" ] && [ -n "${MERCADOLIVRE_REFRESH_TOKEN:-}" ]; then
+            python -m afiliado_bot mercadolivre-refresh-token --github-env
+          fi
           python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
           python -m afiliado_bot seed-site-products --only-if-empty --limit "${SITE_EXPORT_LIMIT:-120}"
 
