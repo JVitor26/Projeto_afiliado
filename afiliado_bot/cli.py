@@ -22,7 +22,7 @@ from .config import AppConfig, BASE_DIR, load_config
 from .models import Product
 from .posters import DryRunPoster, TelegramPoster, WebhookPoster, WhatsAppPoster
 from .redirect_server import serve_redirects
-from .scheduler import run_forever
+from .scheduler import _sleep_until_next_cycle, run_forever
 from .scoring import ProductRanker
 from .services.mining import MiningService
 from .services.publishing import PublishingService, build_offer_message
@@ -542,6 +542,7 @@ def main(argv: list[str] | None = None) -> int:
 
         exit_code = 0
         while True:
+            cycle_start = time.monotonic()
             provider = MercadoLivreClient(config) if args.command == "auto-mercadolivre" else AmazonClient(config)
             report = run_provider_auto(
                 config,
@@ -567,7 +568,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.loop:
                 return exit_code
             print(f"Aguardando {config.interval_minutes} minutos. Ctrl+C para parar.")
-            time.sleep(max(config.interval_minutes, 1) * 60)
+            _sleep_until_next_cycle(max(config.interval_minutes, 1) * 60, cycle_start)
 
     if args.command == "publish":
         posters = _build_posters(config, force_dry_run=args.dry_run)

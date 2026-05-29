@@ -5,6 +5,17 @@ import math
 from .config import AppConfig
 from .models import Product
 
+_TRUSTED_STORES = frozenset({
+    "magazine luiza", "magazineluiza", "magalu",
+    "casas bahia", "casasbahia",
+    "americanas", "lojas americanas",
+    "submarino", "shoptime", "extra", "pontofrio", "ponto frio",
+    "carrefour", "kabum",
+    "dell", "acer", "samsung", "apple", "lg", "lenovo", "positivo", "multilaser",
+    "philips", "tramontina", "mondial", "arno", "brastemp", "consul", "electrolux",
+    "sony", "jbl", "bose", "motorola", "xiaomi", "intelbras",
+})
+
 
 class ProductRanker:
     def __init__(self, config: AppConfig, category_boosts: dict[str, float] | None = None) -> None:
@@ -68,9 +79,31 @@ class ProductRanker:
         if product.free_shipping:
             score += 7
 
-        title = product.title.lower()
-        if any(term in title for term in ("oferta", "promocao", "promoção", "desconto")):
-            score += 4
+        # Bonus: lojas confiáveis (Magazine Luiza, Casas Bahia, Dell, Acer, etc.)
+        store_name = str(product.metadata.get("official_store_name") or "").lower().strip()
+        if store_name and any(t in store_name for t in _TRUSTED_STORES):
+            score += 15
+
+        # Bonus: ofertas relâmpago e ofertas do dia
+        offer_type = str(product.metadata.get("offer_type") or "").lower()
+        flash_by_type = any(t in offer_type for t in ("flash", "relamp", "lightning", "deal_of_day"))
+        daily_by_type = any(t in offer_type for t in ("dia", "daily", "day"))
+        title_lower = product.title.lower()
+        flash_in_title = any(t in title_lower for t in ("relâmpago", "relampago", "oferta do dia", "oferta dia"))
+
+        if flash_by_type or flash_in_title:
+            score += 20
+        elif daily_by_type:
+            score += 12
+
+        # Bonus: oferta com prazo (period_end_time preenchido)
+        if str(product.metadata.get("period_end_time") or "").strip():
+            score += 8
+
+        # Bonus genérico de promoção (só se não for flash/daily já contado)
+        if not flash_by_type and not flash_in_title and not daily_by_type:
+            if any(t in title_lower for t in ("oferta", "promocao", "promoção", "desconto")):
+                score += 4
 
         if product.category:
             score += min(self.category_boosts.get(product.category, 0), 18)

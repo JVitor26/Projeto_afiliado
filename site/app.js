@@ -33,7 +33,10 @@
   const drawerClose = document.getElementById("drawerClose");
   const favoritesButton = document.getElementById("favoritesButton");
   const openBestDeal = document.getElementById("openBestDeal");
+  const heroFeature = document.getElementById("heroFeature");
+  const featuredList = document.getElementById("featuredList");
   let motionObserver = null;
+  let imageObserver = null;
   let parallaxFrame = 0;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const CATEGORY_TREE = [
@@ -273,10 +276,52 @@
 
   function init() {
     initMotion();
+    initImageObserver();
     renderFilters();
     renderMetrics(products);
     renderProducts();
     bindEvents();
+  }
+
+  function initImageObserver() {
+    if (imageObserver) return;
+    try {
+      imageObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const img = entry.target;
+            const src = img.dataset.src;
+            if (src) {
+              img.src = src;
+              img.removeAttribute('data-src');
+              try { img.loading = 'eager'; } catch (e) {}
+            }
+            imageObserver.unobserve(img);
+          });
+        },
+        { rootMargin: '1000px 0px 1000px 0px', threshold: 0.01 }
+      );
+    } catch (e) {
+      imageObserver = null;
+    }
+  }
+
+  function primeVisibleImages() {
+    const margin = 600;
+    const imgs = document.querySelectorAll('img[data-src]');
+    imgs.forEach((img) => {
+      const rect = img.getBoundingClientRect();
+      if (rect.bottom >= -margin && rect.top <= (window.innerHeight || document.documentElement.clientHeight) + margin) {
+        const src = img.dataset.src;
+        if (src) {
+          img.src = src;
+          img.removeAttribute('data-src');
+          try { img.loading = 'eager'; } catch (e) {}
+        }
+        if (imageObserver) imageObserver.unobserve(img);
+      }
+    });
   }
 
   function bindEvents() {
@@ -504,7 +549,10 @@
     emptyState.hidden = sorted.length > 0;
     renderMetrics(filtered);
     updateFavoriteCount();
+    renderFeaturedHighlights(sorted);
     refreshMotionTargets();
+    // eagerly prime any images that are already within extended viewport
+    if (typeof primeVisibleImages === 'function') primeVisibleImages();
   }
 
   function renderProductCard(product) {
@@ -518,13 +566,16 @@
     favoriteButton.textContent = isFavorite ? "♥" : "♡";
     favoriteButton.addEventListener("click", () => toggleFavorite(product));
 
-    image.src = product.imageUrl || fallbackImage;
+    // Use data-src + IntersectionObserver to preload images earlier without forcing all to eager
+    image.dataset.src = product.imageUrl || fallbackImage;
+    image.src = fallbackImage;
     image.alt = product.title;
     image.loading = "lazy";
     image.onerror = () => {
       image.src = fallbackImage;
     };
     mediaButton.appendChild(image);
+    if (imageObserver) imageObserver.observe(image);
     mediaButton.setAttribute("aria-label", `Ver detalhes de ${product.title}`);
     mediaButton.addEventListener("click", () => openDrawer(product));
 
@@ -544,6 +595,55 @@
     buyButton.href = product.affiliateUrl;
     buyButton.textContent = "Comprar";
     return node;
+  }
+
+  function renderFeaturedHighlights(items) {
+    const candidates = items.length ? items : products;
+    const featured = sortProducts(candidates.slice(), "score").slice(0, 3);
+    heroFeature.innerHTML = featured.length
+      ? featured
+          .slice(0, 1)
+          .map((product) => {
+            return `
+              <div class="hero-card">
+                <img src="${escapeAttr(product.imageUrl || fallbackImage)}" alt="${escapeAttr(product.title)}" loading="eager">
+                <div>
+                  <span class="eyebrow">Oferta top</span>
+                  <h2>${escapeHtml(product.title)}</h2>
+                  <p>${escapeHtml(product.department || sourceLabel(product.source))}</p>
+                  <div class="hero-labels">
+                    <strong>${priceLabel(product)}</strong>
+                    <span>${product.discountPercent ? `${Math.round(product.discountPercent)}% OFF` : shippingLabel(product)}</span>
+                  </div>
+                  <a class="buy-button" href="${escapeAttr(product.affiliateUrl)}" target="_blank" rel="noopener noreferrer">Comprar agora</a>
+                </div>
+              </div>
+            `;
+          })
+          .join("")
+      : `<div class="hero-empty">Atualize os filtros para ver a oferta em destaque.</div>`;
+
+    featuredList.innerHTML = featured.length
+      ? featured
+          .map((product) => {
+            return `
+              <article class="featured-card">
+                <img src="${escapeAttr(product.imageUrl || fallbackImage)}" alt="${escapeAttr(product.title)}" loading="lazy">
+                <div>
+                  <p class="featured-source">${escapeHtml(sourceLabel(product.source))}</p>
+                  <h3>${escapeHtml(product.title)}</h3>
+                  <p class="featured-meta">${escapeHtml(product.department)} • ${product.discountPercent ? `${Math.round(product.discountPercent)}% OFF` : shippingLabel(product)}</p>
+                  <div class="featured-pricing">
+                    <strong>${priceLabel(product)}</strong>
+                    ${product.originalPrice ? `<s>${money(product.originalPrice, product.currency)}</s>` : ""}
+                  </div>
+                  <a class="details-button" href="${escapeAttr(product.affiliateUrl)}" target="_blank" rel="noopener noreferrer">Ver oferta</a>
+                </div>
+              </article>
+            `;
+          })
+          .join("")
+      : `<p class="featured-empty">Nenhuma oferta disponível para os filtros aplicados.</p>`;
   }
 
   function filterProducts(items) {
@@ -869,10 +969,11 @@
     }
 
     const productText = productSearchText(product);
-    const matchesParent =
-      (entry.departments || []).includes(product.department) ||
-      (entry.terms || []).some((term) => productText.includes(simpleText(term)));
-    if (!matchesParent) return false;
+    const hasDepartments = Array.isArray(entry.departments) && entry.departments.length > 0;
+    const matchesByDepartment = hasDepartments && entry.departments.includes(product.department);
+    const matchesByTerms = (entry.terms || []).some((term) => productText.includes(simpleText(term)));
+    if (hasDepartments && !matchesByDepartment) return false;
+    if (!hasDepartments && !matchesByTerms) return false;
     if (subcategoryId === "all") return true;
 
     const subcategory = findSubcategory(entry, subcategoryId);

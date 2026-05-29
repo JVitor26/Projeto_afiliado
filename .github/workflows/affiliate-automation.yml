@@ -149,7 +149,7 @@ jobs:
           add_env MIN_SELLER_TRANSACTIONS "$V_MIN_SELLER_TRANSACTIONS"
           add_env MINE_LIMIT_PER_KEYWORD "$V_MINE_LIMIT_PER_KEYWORD"
           add_env PUBLISH_LIMIT "$V_PUBLISH_LIMIT"
-          add_env REPOST_AFTER_MINUTES "$V_REPOST_AFTER_MINUTES"
+          add_env REPOST_AFTER_MINUTES "${V_REPOST_AFTER_MINUTES:-240}"
           add_env SITE_EXPORT_LIMIT "$V_SITE_EXPORT_LIMIT"
           add_env MERCADOLIVRE_SITE_ID "$V_MERCADOLIVRE_SITE_ID"
           add_env MERCADOLIVRE_REDIRECT_URI "$V_MERCADOLIVRE_REDIRECT_URI"
@@ -235,6 +235,7 @@ jobs:
             afiliado-db-
 
       - name: Rodar testes
+        if: github.event_name != 'schedule'
         run: python -m unittest discover -s tests
 
       - name: Conferir destino de publicacao
@@ -269,14 +270,17 @@ jobs:
           if [ -n "${MERCADOLIVRE_CLIENT_ID:-}" ] && [ -n "${MERCADOLIVRE_CLIENT_SECRET:-}" ] && [ -n "${MERCADOLIVRE_REFRESH_TOKEN:-}" ]; then
             python -m afiliado_bot mercadolivre-refresh-token --github-env
           fi
-          python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
-          python -m afiliado_bot seed-site-products --only-if-empty --limit "${SITE_EXPORT_LIMIT:-120}"
 
+          # Publicar primeiro (usa banco existente, envia em segundos)
+          python -m afiliado_bot seed-site-products --only-if-empty --limit "${SITE_EXPORT_LIMIT:-120}"
           if [ "$DRY_RUN" = "true" ]; then
             python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}" --dry-run
           else
             python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}"
           fi
+
+          # Minerar novos produtos depois (operacao lenta, nao atrasa o envio)
+          python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
 
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
           python -m afiliado_bot stats

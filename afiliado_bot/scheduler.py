@@ -7,6 +7,14 @@ from .services.mining import MiningService
 from .services.publishing import PublishingService
 
 
+def _sleep_until_next_cycle(interval_seconds: int, cycle_start: float) -> None:
+    remaining = cycle_start + interval_seconds - time.monotonic()
+    if remaining > 0:
+        time.sleep(remaining)
+    else:
+        print("Next cycle is already due; starting immediately.")
+
+
 def run_forever(
     config: AppConfig,
     mining: MiningService,
@@ -17,6 +25,7 @@ def run_forever(
 ) -> None:
     interval_seconds = max(config.interval_minutes, 1) * 60
     while True:
+        cycle_start = time.monotonic()
         report = mining.mine(
             config.keywords,
             limit_per_keyword=limit_per_keyword or config.mine_limit_per_keyword,
@@ -31,4 +40,4 @@ def run_forever(
         sent = publishing.publish(limit=publish_limit or config.publish_limit)
         print(f"Publishing: sent={sent}")
         print(f"Sleeping {config.interval_minutes} minutes. Ctrl+C to stop.")
-        time.sleep(interval_seconds)
+        _sleep_until_next_cycle(interval_seconds, cycle_start)

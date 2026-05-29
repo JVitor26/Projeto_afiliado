@@ -37,7 +37,8 @@ def load_dotenv(path: Path | None = None) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        if not os.environ.get(key):
+            os.environ[key] = value
 
 
 def _csv(name: str, default: str = "") -> list[str]:
@@ -152,9 +153,12 @@ class AppConfig:
     webhook_urls: list[str] = field(default_factory=list)
 
     mine_limit_per_keyword: int = 20
+    mining_parallel_keywords: int = 4
+    mining_parallel_providers: int = 5
+    mining_timeout_seconds: int = 300
     publish_limit: int = 1
     interval_minutes: int = 8
-    repost_after_minutes: int = 8
+    repost_after_minutes: int = 240
     enabled_sources: list[str] = field(default_factory=list)
 
 
@@ -261,8 +265,11 @@ def load_config() -> AppConfig:
         whatsapp_channel_url=os.getenv("WHATSAPP_CHANNEL_URL", ""),
         webhook_urls=_csv("SOCIAL_WEBHOOK_URLS"),
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
+        mining_parallel_keywords=_int("MINING_PARALLEL_KEYWORDS", 4),
+        mining_parallel_providers=_int("MINING_PARALLEL_PROVIDERS", 5),
+        mining_timeout_seconds=_int("MINING_TIMEOUT_SECONDS", 300),
         publish_limit=_int("PUBLISH_LIMIT", 1),
         interval_minutes=_int("INTERVAL_MINUTES", 8),
-        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 8),
+        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 240),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),
     )

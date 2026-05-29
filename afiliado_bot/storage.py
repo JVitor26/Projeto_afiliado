@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -8,6 +9,36 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .models import Product, utc_now_iso
+
+_TITLE_NOISE = frozenset({
+    "de", "da", "do", "em", "para", "com", "sem", "no", "na", "os", "as", "um", "uma",
+    "e", "o", "a", "ao", "dos", "das", "nos", "nas", "pelo", "pela", "por", "que", "se",
+    "preto", "preta", "branco", "branca", "azul", "rosa", "vermelho", "vermelha",
+    "verde", "amarelo", "amarela", "cinza", "dourado", "dourada", "prata", "laranja",
+    "roxo", "roxa", "lilas", "bege", "marrom",
+})
+_NOISE_RE = re.compile(r'[^a-z0-9\s]')
+
+
+def _normalize_title(title: str) -> str:
+    text = _NOISE_RE.sub(' ', title.lower())
+    words = [w for w in text.split() if w not in _TITLE_NOISE and len(w) >= 3]
+    return " ".join(words[:7])
+
+
+def _dedup_by_title(products: list[Product], limit: int) -> list[Product]:
+    """Mantém a ordem original, mas para títulos similares, preserva apenas o mais barato."""
+    groups: dict[str, Product] = {}
+    order: list[str] = []
+    for p in products:
+        norm = _normalize_title(p.title)
+        key = norm if norm else f"__{p.id or id(p)}__"
+        if key not in groups:
+            groups[key] = p
+            order.append(key)
+        elif norm and p.price > 0 and (groups[key].price <= 0 or p.price < groups[key].price):
+            groups[key] = p
+    return [groups[k] for k in order][:limit]
 
 
 class Storage:
@@ -145,21 +176,24 @@ class Storage:
         if unpublished_only:
             clauses.append("published_count = 0")
 
+        fetch_limit = max(limit * 10, 50)
         query = f"""
             select * from products
             where {' and '.join(clauses)}
             order by score desc, last_seen desc
             limit ?
         """
-        params.append(limit)
+        params.append(fetch_limit)
         with self.session() as conn:
             rows = conn.execute(query, params).fetchall()
-        return [self._row_to_product(row) for row in rows]
+        products = [self._row_to_product(row) for row in rows]
+        return _dedup_by_title(products, limit)
 
     def list_repost_candidates(self, *, limit: int, min_score: float, cooldown_minutes: int) -> list[Product]:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(cooldown_minutes, 1))).replace(
             microsecond=0
         ).isoformat()
+        fetch_limit = max(limit * 10, 50)
         with self.session() as conn:
             rows = conn.execute(
                 """
@@ -170,15 +204,16 @@ class Storage:
                 group by p.id
                 having last_posted_at is null or last_posted_at <= ?
                 order by
+                    p.score desc,
                     case when last_posted_at is null then 0 else 1 end,
                     last_posted_at asc,
-                    p.score desc,
                     p.last_seen desc
                 limit ?
                 """,
-                (min_score, cutoff, limit),
+                (min_score, cutoff, fetch_limit),
             ).fetchall()
-        return [self._row_to_product(row) for row in rows]
+        products = [self._row_to_product(row) for row in rows]
+        return _dedup_by_title(products, limit)
 
     def list_products_for_store(self, *, limit: int = 120, require_image: bool = False) -> list[Product]:
         clauses = []
