@@ -35,6 +35,7 @@ class PublishingService:
                 results = poster.post(message, product)
                 for result in results:
                     status = "sent" if result.success and not dry_run else "preview" if dry_run else "failed"
+                    print(f"  [{result.channel}] {status}: {result.response[:120] if not result.success else 'ok'}")
                     if product.id is not None:
                         self.storage.add_post(
                             product.id,
