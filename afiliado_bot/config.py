@@ -158,7 +158,7 @@ class AppConfig:
     mining_timeout_seconds: int = 300
     publish_limit: int = 1
     interval_minutes: int = 8
-    repost_after_minutes: int = 60
+    repost_after_minutes: int = 15
     enabled_sources: list[str] = field(default_factory=list)
 
 
@@ -270,6 +270,6 @@ def load_config() -> AppConfig:
         mining_timeout_seconds=_int("MINING_TIMEOUT_SECONDS", 300),
         publish_limit=_int("PUBLISH_LIMIT", 1),
         interval_minutes=_int("INTERVAL_MINUTES", 8),
-        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 60),
+        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 15),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),
     )
