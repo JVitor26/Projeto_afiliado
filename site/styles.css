@@ -360,12 +360,19 @@ select:focus-visible {
 }
 
 .featured-source {
+  display: inline-flex;
+  align-items: center;
   margin: 0 0 10px;
   color: var(--emerald);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+.featured-source[data-source="mercadolivre"] { color: #c8b400; }
+.featured-source[data-source="amazon"]       { color: #FF9900; }
+.featured-source[data-source="aliexpress"]   { color: #FF6040; }
+.featured-source[data-source="shopee"]       { color: #EE7055; }
 
 .featured-card h3 {
   margin: 0;
@@ -661,8 +668,16 @@ h2 {
 .source-filter,
 .category-button {
   min-height: 38px;
-  padding: 0 12px;
+  padding: 0 14px;
   color: #e7e7e3;
+}
+
+.source-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
 }
 
 .source-filter.active,
@@ -1112,7 +1127,86 @@ h2 {
 }
 
 .source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Marketplace brand mark (icon before label) */
+.src-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  margin-right: 5px;
+  font-style: normal;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Per-marketplace source-pill colors */
+.source-pill[data-source="mercadolivre"] {
+  background: rgba(255, 230, 0, 0.10);
+  border-color: rgba(255, 230, 0, 0.26);
+  color: #c8b400;
+}
+
+.source-pill[data-source="amazon"] {
+  background: rgba(255, 153, 0, 0.09);
+  border-color: rgba(255, 153, 0, 0.24);
+  color: #FF9900;
+}
+
+.source-pill[data-source="aliexpress"] {
+  background: rgba(255, 70, 0, 0.09);
+  border-color: rgba(255, 70, 0, 0.24);
+  color: #FF6040;
+}
+
+.source-pill[data-source="shopee"] {
+  background: rgba(238, 77, 45, 0.09);
+  border-color: rgba(238, 77, 45, 0.24);
+  color: #EE7055;
+}
+
+/* Per-marketplace source-filter active states */
+.source-filter[data-source="mercadolivre"].active {
+  background: rgba(255, 230, 0, 0.13);
+  border-color: rgba(255, 230, 0, 0.5);
+  color: #FFE600;
+}
+
+.source-filter[data-source="amazon"].active {
+  background: rgba(255, 153, 0, 0.11);
+  border-color: rgba(255, 153, 0, 0.46);
+  color: #FF9900;
+}
+
+.source-filter[data-source="aliexpress"].active {
+  background: rgba(255, 70, 0, 0.11);
+  border-color: rgba(255, 70, 0, 0.46);
+  color: #FF6040;
+}
+
+.source-filter[data-source="shopee"].active {
+  background: rgba(238, 77, 45, 0.11);
+  border-color: rgba(238, 77, 45, 0.46);
+  color: #EE6050;
+}
+
+/* Source count in filter buttons */
+.src-count {
+  opacity: 0.65;
+  font-size: 0.85em;
+  font-weight: 400;
 }
 
 .discount-pill {
@@ -1133,6 +1227,22 @@ h2 {
   border-color: rgba(13, 111, 92, 0.2);
   color: var(--emerald);
   background: var(--emerald-soft);
+}
+
+.discount-pill.is-flash {
+  border-color: rgba(255, 122, 92, 0.4);
+  color: #ff9976;
+  background: rgba(255, 122, 92, 0.24);
+  font-weight: 950;
+  animation: pulsFlash 1.2s ease-in-out infinite;
+}
+
+.discount-pill.is-daily {
+  border-color: rgba(212, 175, 55, 0.4);
+  color: #ffd966;
+  background: rgba(212, 175, 55, 0.24);
+  font-weight: 950;
+  animation: pulseDaily 1.5s ease-in-out infinite;
 }
 
 .product-card h3 {
@@ -1465,6 +1575,35 @@ h2 {
 
   50% {
     box-shadow: 0 0 22px rgba(255, 79, 94, 0.16);
+  }
+}
+
+@keyframes pulsFlash {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes pulseDaily {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(212, 175, 55, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 18px rgba(212, 175, 55, 0.32);
+  }
+}
+
+@media (min-width: 1500px) {
+  .product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
   }
 }
 

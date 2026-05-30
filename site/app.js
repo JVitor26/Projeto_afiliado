@@ -39,7 +39,59 @@
   let imageObserver = null;
   let parallaxFrame = 0;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const PREMIUM_SELLERS = new Set([
+    "magazine",
+    "magalu",
+    "casas bahia",
+    "casbahia",
+    "acer",
+    "samsung",
+    "apple",
+    "lg",
+    "positivo",
+    "dell",
+    "lenovo",
+    "hp",
+    "epson",
+    "canon",
+    "sony",
+    "philco",
+    "brastemp",
+    "consul",
+    "electrolux",
+    "bosch",
+    "tramontina",
+    "mondial",
+    "mondial electricos",
+    "wap",
+    "electrolux",
+  ]);
+
+  const SOURCE_MARKS = {
+    mercadolivre: { name: "Mercado Livre", icon: "ML", bg: "#FFE600", fg: "#1a1a1a" },
+    amazon:       { name: "Amazon",        icon: "Am", bg: "#232F3E", fg: "#FF9900" },
+    aliexpress:   { name: "AliExpress",    icon: "Ali", bg: "#FF4600", fg: "#fff" },
+    shopee:       { name: "Shopee",        icon: "Sh", bg: "#EE4D2D", fg: "#fff" },
+    manual:       { name: "Manual",        icon: "✦",  bg: "#1C4D3D", fg: "#7CD6B2" },
+  };
+
   const CATEGORY_TREE = [
+    {
+      id: "flash-offers",
+      label: "Ofertas Relâmpago",
+      special: "flashOffers",
+      groups: [
+        categoryGroup("Oferta limitada", ["Tempo limitado", "Relâmpago", "Flash Sale", "Oferta por tempo"]),
+      ],
+    },
+    {
+      id: "daily-offers",
+      label: "Ofertas do Dia",
+      special: "dailyOffers",
+      groups: [
+        categoryGroup("Hoje mesmo", ["Oferta do dia", "Especial do dia", "Válido hoje", "Hoje"]),
+      ],
+    },
     {
       id: "vehicles",
       label: "Veículos",
@@ -400,7 +452,13 @@
       const button = document.createElement("button");
       button.className = `source-filter${state.source === source ? " active" : ""}`;
       button.type = "button";
-      button.textContent = filterLabel(sourceLabel(source), sourceCount(source, sourceCounts));
+      button.dataset.source = source;
+      const cnt = sourceCount(source, sourceCounts);
+      if (source === "all" || source === "favorites") {
+        button.textContent = filterLabel(sourceLabel(source), cnt);
+      } else {
+        button.innerHTML = `${sourceMarkHTML(source)}<span class="src-count">&thinsp;(${cnt})</span>`;
+      }
       button.addEventListener("click", () => {
         state.source = source;
         renderFilters();
@@ -579,11 +637,22 @@
     mediaButton.setAttribute("aria-label", `Ver detalhes de ${product.title}`);
     mediaButton.addEventListener("click", () => openDrawer(product));
 
-    node.querySelector(".source-pill").textContent = sourceLabel(product.source);
+    const srcPill = node.querySelector(".source-pill");
+    srcPill.dataset.source = product.source;
+    srcPill.innerHTML = sourceMarkHTML(product.source);
     node.querySelector(".category-chip").textContent = product.department;
     const discount = node.querySelector(".discount-pill");
-    discount.textContent = product.discountPercent ? `${Math.round(product.discountPercent)}% off` : shippingLabel(product);
-    discount.classList.toggle("is-shipping", !product.discountPercent && product.freeShipping);
+
+    if (isFlashOffer(product)) {
+      discount.textContent = "⚡ RELÂMPAGO";
+      discount.classList.add("is-flash");
+    } else if (isDailyOffer(product)) {
+      discount.textContent = "📅 OFERTA DO DIA";
+      discount.classList.add("is-daily");
+    } else {
+      discount.textContent = product.discountPercent ? `${Math.round(product.discountPercent)}% off` : shippingLabel(product);
+      discount.classList.toggle("is-shipping", !product.discountPercent && product.freeShipping);
+    }
     node.querySelector("h3").textContent = product.title;
     node.querySelector(".price-row strong").textContent = priceLabel(product);
     const originalPrice = node.querySelector(".price-row s");
@@ -630,7 +699,7 @@
               <article class="featured-card">
                 <img src="${escapeAttr(product.imageUrl || fallbackImage)}" alt="${escapeAttr(product.title)}" loading="lazy">
                 <div>
-                  <p class="featured-source">${escapeHtml(sourceLabel(product.source))}</p>
+                  <p class="featured-source" data-source="${escapeAttr(product.source)}">${sourceMarkHTML(product.source)}</p>
                   <h3>${escapeHtml(product.title)}</h3>
                   <p class="featured-meta">${escapeHtml(product.department)} • ${product.discountPercent ? `${Math.round(product.discountPercent)}% OFF` : shippingLabel(product)}</p>
                   <div class="featured-pricing">
@@ -794,6 +863,9 @@
 
   function buildStats(product) {
     const stats = [];
+    if (isFlashOffer(product)) stats.push("⚡ Relâmpago");
+    else if (isDailyOffer(product)) stats.push("📅 Oferta do dia");
+    if (isPremiumSeller(product)) stats.push("⭐ Premium");
     if (product.freeShipping) stats.push("Frete gratis");
     if (product.discountPercent) stats.push(`${Math.round(product.discountPercent)}% off`);
     if (product.rating) stats.push(`${product.rating.toFixed(1)}/5`);
@@ -961,6 +1033,12 @@
     const entry = categoryEntry(categoryId);
     if (!entry) return true;
 
+    if (entry.special === "flashOffers") {
+      return isFlashOffer(product);
+    }
+    if (entry.special === "dailyOffers") {
+      return isDailyOffer(product);
+    }
     if (entry.special === "bestSellers") {
       return product.soldQuantity >= 5 || product.sellerCompletedTransactions >= 25 || qualityScore(product) >= 45;
     }
@@ -988,12 +1066,49 @@
     return true;
   }
 
+  function isFlashOffer(product) {
+    if (!product.offerType) return false;
+    const type = String(product.offerType).toLowerCase();
+    return type.includes("flash") || type.includes("relâmpago") || type.includes("relampage");
+  }
+
+  function isDailyOffer(product) {
+    if (!product.periodEndTime) return false;
+    try {
+      const endTime = new Date(product.periodEndTime);
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      return endTime <= tomorrow && endTime > now;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isPremiumSeller(product) {
+    const sellerName = String(product.officialStoreName || product.sellerLevel || "").toLowerCase();
+    return Array.from(PREMIUM_SELLERS).some(seller => sellerName.includes(seller));
+  }
+
+  function isOfficialOrPowerSeller(product) {
+    return Boolean(product.officialStoreId || product.officialStoreName || product.sellerPowerStatus);
+  }
+
   function qualityScore(product) {
     let score = Number(product.score || 0);
+
+    // Flash offers and daily offers get massive boost
+    if (isFlashOffer(product)) score += 95;
+    if (isDailyOffer(product)) score += 85;
+
+    // Premium sellers get boost
+    if (isPremiumSeller(product)) score += 28;
+    else if (isOfficialOrPowerSeller(product)) score += 18;
+
     if (product.soldQuantity) score += Math.min(Math.log10(product.soldQuantity + 1) * 8, 22);
     if (product.sellerCompletedTransactions) score += Math.min(Math.log10(product.sellerCompletedTransactions + 1) * 7, 22);
-    if (product.sellerPowerStatus) score += 8;
-    if (product.officialStoreId || product.officialStoreName) score += 8;
+    if (product.discountPercent) score += Math.min(product.discountPercent / 2, 20);
     if (product.imageUrl) score += 4;
     return score;
   }
@@ -1025,6 +1140,12 @@
       marketplace: "Marketplace",
     };
     return labels[source] || source;
+  }
+
+  function sourceMarkHTML(source) {
+    const mark = SOURCE_MARKS[source];
+    if (!mark) return escapeHtml(sourceLabel(source));
+    return `<em class="src-mark" style="background:${mark.bg};color:${mark.fg}">${escapeHtml(mark.icon)}</em>${escapeHtml(mark.name)}`;
   }
 
   function money(value, currency = "BRL") {
