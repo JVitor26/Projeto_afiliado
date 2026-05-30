@@ -67,6 +67,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Instalar dependencias
+        shell: bash
+        run: |
+          pip install -e . --quiet
+          pip install Pillow --quiet
+
       - name: Aplicar variaveis opcionais
         shell: bash
         env:
