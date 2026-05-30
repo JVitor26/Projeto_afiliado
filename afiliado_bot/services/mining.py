@@ -31,15 +31,21 @@ class MiningService:
                 for keyword in keywords
             }
 
-            for future in concurrent.futures.as_completed(futures, timeout=300):
-                keyword = futures[future]
-                try:
-                    partial_report = future.result()
-                    report.imported += partial_report.imported
-                    report.skipped += partial_report.skipped
-                    report.errors.extend(partial_report.errors)
-                except Exception as exc:
-                    report.errors.append(f"Erro ao processar keyword '{keyword}': {exc}")
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=300):
+                    keyword = futures[future]
+                    try:
+                        partial_report = future.result()
+                        report.imported += partial_report.imported
+                        report.skipped += partial_report.skipped
+                        report.errors.extend(partial_report.errors)
+                    except Exception as exc:
+                        report.errors.append(f"Erro ao processar keyword '{keyword}': {exc}")
+            except concurrent.futures.TimeoutError:
+                for future, keyword in futures.items():
+                    if not future.done():
+                        future.cancel()
+                        report.errors.append(f"Timeout ao processar keyword '{keyword}'")
 
         return report
 

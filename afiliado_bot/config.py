@@ -201,7 +201,7 @@ class AppConfig:
     mining_parallel_keywords: int = 4
     mining_parallel_providers: int = 5
     mining_timeout_seconds: int = 300
-    publish_limit: int = 1
+    publish_limit: int = 4
     interval_minutes: int = 8
     repost_after_minutes: int = 15
     enabled_sources: list[str] = field(default_factory=list)
@@ -257,6 +257,7 @@ def load_config() -> AppConfig:
         mercadolivre_access_token=os.getenv("MERCADOLIVRE_ACCESS_TOKEN", ""),
         mercadolivre_refresh_token=os.getenv("MERCADOLIVRE_REFRESH_TOKEN", ""),
         mercadolivre_affiliate_template=os.getenv("MERCADOLIVRE_AFFILIATE_TEMPLATE", ""),
+
         mercadolivre_affiliate_id=os.getenv("MERCADOLIVRE_AFFILIATE_ID", ""),
         mercadolivre_min_discount=_int("MERCADOLIVRE_MIN_DISCOUNT", 10),
         shopee_feed_path=shopee_feed_path,
@@ -319,7 +320,7 @@ def load_config() -> AppConfig:
         mining_parallel_keywords=_int("MINING_PARALLEL_KEYWORDS", 4),
         mining_parallel_providers=_int("MINING_PARALLEL_PROVIDERS", 5),
         mining_timeout_seconds=_int("MINING_TIMEOUT_SECONDS", 300),
-        publish_limit=_int("PUBLISH_LIMIT", 1),
+        publish_limit=_int("PUBLISH_LIMIT", 4),
         interval_minutes=_int("INTERVAL_MINUTES", 8),
         repost_after_minutes=_int("REPOST_AFTER_MINUTES", 15),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),

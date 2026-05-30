@@ -304,9 +304,9 @@ jobs:
           python -m afiliado_bot init-db
           python -m afiliado_bot seed-site-products --only-if-empty --limit "${SITE_EXPORT_LIMIT:-120}"
           if [ "$DRY_RUN" = "true" ]; then
-            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}" --dry-run
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-4}" --dry-run
           else
-            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-1}"
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-4}"
           fi
 
       - name: Minerar e exportar loja
