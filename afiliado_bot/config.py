@@ -77,7 +77,7 @@ class AppConfig:
     min_price: float = 0.0
     max_price: float = 0.0
     min_discount_percent: float = 0.0
-    min_score_to_publish: float = 25.0
+    min_score_to_publish: float = 15.0
     require_product_image: bool = True
     min_sold_quantity: int = 5
     min_seller_transactions: int = 25
@@ -158,7 +158,7 @@ class AppConfig:
     mining_timeout_seconds: int = 300
     publish_limit: int = 1
     interval_minutes: int = 8
-    repost_after_minutes: int = 240
+    repost_after_minutes: int = 60
     enabled_sources: list[str] = field(default_factory=list)
 
 
@@ -198,7 +198,7 @@ def load_config() -> AppConfig:
         min_price=_float("MIN_PRICE", 0.0),
         max_price=_float("MAX_PRICE", 0.0),
         min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 0.0),
-        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 25.0),
+        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 15.0),
         require_product_image=_bool("REQUIRE_PRODUCT_IMAGE", True),
         min_sold_quantity=_int("MIN_SOLD_QUANTITY", 5),
         min_seller_transactions=_int("MIN_SELLER_TRANSACTIONS", 25),
@@ -270,6 +270,6 @@ def load_config() -> AppConfig:
         mining_timeout_seconds=_int("MINING_TIMEOUT_SECONDS", 300),
         publish_limit=_int("PUBLISH_LIMIT", 1),
         interval_minutes=_int("INTERVAL_MINUTES", 8),
-        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 240),
+        repost_after_minutes=_int("REPOST_AFTER_MINUTES", 60),
         enabled_sources=_csv("ENABLED_SOURCES", "manual,mercadolivre,shopee,amazon,aliexpress"),
     )

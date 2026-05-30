@@ -204,9 +204,9 @@ class Storage:
                 group by p.id
                 having last_posted_at is null or last_posted_at <= ?
                 order by
-                    p.score desc,
                     case when last_posted_at is null then 0 else 1 end,
                     last_posted_at asc,
+                    p.score desc,
                     p.last_seen desc
                 limit ?
                 """,
