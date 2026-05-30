@@ -101,7 +101,7 @@ def build_offer_message(product: Product, public_base_url: str = "") -> str:
     # ── Parcelas ────────────────────────────────────────────
     installment_line = _installment_line(product, source_name)
     if installment_line:
-        lines.append(f"💳 Ou {escape(installment_line)}")
+        lines.append(f"💳 {escape(installment_line)}")
 
     # ── Cupom ───────────────────────────────────────────────
     if coupon_code or coupon_discount:

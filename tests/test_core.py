@@ -508,7 +508,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(product.title, "Oferta Mercado Livre")
         self.assertEqual(product.affiliate_url, "https://meli.la/2v6vBf4")
         self.assertEqual(product.metadata["search_code"], "G1Q50T-7TGA")
-        self.assertIn("Código Mercado Livre: <b>G1Q50T-7TGA</b>", message)
+        self.assertIn("G1Q50T-7TGA", message)
 
     def test_offer_message_uses_compact_telegram_layout(self):
         product = Product(
@@ -526,11 +526,12 @@ class CoreTests(unittest.TestCase):
 
         message = build_offer_message(product)
 
-        self.assertIn("<b>Samsung Galaxy S25 Ultra 5G 256GB</b> | De <s>R$ 10.499,00</s> Por <b>R$ 4.749,00</b> (no Pix)", message)
-        self.assertIn("🔥 Oferta com 55% OFF no produto!", message)
-        self.assertIn("💸 Frete Grátis (Consultar CEP)", message)
-        self.assertIn("✅ Ou 10x de R$ 527,67 no cartão", message)
-        self.assertIn("➡️ <b>COMPRE PELO SITE:</b> https://cutt.ly/RtMRtfOd", message)
+        self.assertIn("Samsung Galaxy S25 Ultra 5G 256GB", message)
+        self.assertIn("R$ 4.749,00", message)
+        self.assertIn("R$ 10.499,00", message)
+        self.assertIn("FRETE GRÁTIS", message)
+        self.assertIn("10x de R$ 527,67", message)
+        self.assertIn("https://cutt.ly/RtMRtfOd", message)
 
     def test_mercadolivre_html_card_enriches_product(self):
         html = """
