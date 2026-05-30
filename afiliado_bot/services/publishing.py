@@ -21,24 +21,27 @@ class PublishingService:
             min_score=score_floor,
             unpublished_only=not dry_run,
         )
+        is_repost = False
         if not products and not dry_run and self.config.repost_after_minutes > 0:
             products = self.storage.list_repost_candidates(
                 limit=limit,
                 min_score=score_floor,
                 cooldown_minutes=self.config.repost_after_minutes,
             )
+            is_repost = True
 
-        # Títulos publicados recentemente (últimas 48h) para evitar duplicatas entre runs
-        recent_titles = self.storage.recently_published_titles(hours=48)
+        # Deduplicação por similaridade: só para produtos NOVOS (não reposts).
+        # Para reposts o cooldown do banco já garante o intervalo — não filtrar aqui.
+        recent_titles = self.storage.recently_published_titles(hours=4) if not is_repost else []
 
         sent = 0
         published_this_run: list[str] = []  # títulos postados nesta execução
 
         for product in products:
-            # Checa similaridade com publicações recentes e com esta execução
+            # Evita publicar variantes similares em sequência (ex: mesmo produto, sabores diferentes)
             all_recent = recent_titles + published_this_run
-            if any(are_titles_similar(product.title, t) for t in all_recent):
-                print(f"  [skip] produto similar ja publicado recentemente: {product.title[:60]}")
+            if all_recent and any(are_titles_similar(product.title, t) for t in all_recent):
+                print(f"  [skip-dedup] similar ja publicado: {product.title[:60]}")
                 continue
 
             message = build_offer_message(product, self.config.public_base_url)
