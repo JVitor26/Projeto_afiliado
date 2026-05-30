@@ -12,16 +12,38 @@ DEFAULT_ALIEXPRESS_FIELDS = (
     "discount,commission_rate,evaluate_rate,lastest_volume,first_level_category_name"
 )
 DEFAULT_KEYWORDS = (
+    # Tecnologia
     "celular,smartphone,iphone,notebook,monitor,ssd,fone bluetooth,headset gamer,"
     "smartwatch,tablet,caixa de som bluetooth,teclado gamer,mouse gamer,roteador wifi,"
-    "webcam,carregador turbo,power bank,air fryer,fritadeira eletrica,panela eletrica,"
+    "webcam,carregador turbo,power bank,"
+    # Eletrodomésticos e cozinha
+    "air fryer,fritadeira eletrica,panela eletrica,"
     "liquidificador,cafeteira,aspirador de po,ventilador,climatizador,geladeira,"
-    "micro-ondas,maquina de lavar,lava e seca,purificador de agua,organizador,"
-    "utensilios de cozinha,jogo de panelas,panelas,cama mesa banho,toalha,jogo de cama,"
-    "luminaria,suporte de parede,furadeira,parafusadeira,ferramentas,jogo de ferramentas,"
-    "caixa de ferramentas,serra eletrica,esmerilhadeira,lavadora de alta pressao,"
-    "compressor de ar,kit automotivo,acessorios carro,carregador veicular,camera veicular,"
-    "aspirador automotivo,pneu,calibrador pneu,suporte celular carro,som automotivo"
+    "micro-ondas,maquina de lavar,lava e seca,purificador de agua,"
+    # Casa e decoração
+    "organizador,utensilios de cozinha,jogo de panelas,cama mesa banho,toalha,jogo de cama,"
+    "luminaria,suporte de parede,"
+    # Ferramentas
+    "furadeira,parafusadeira,ferramentas,lavadora de alta pressao,"
+    # Automotivo
+    "kit automotivo,acessorios carro,carregador veicular,camera veicular,som automotivo,"
+    # Moda e calçados
+    "moda feminina,calcado feminino,tenis esportivo,calca jeans,camiseta,vestido,"
+    "moda masculina,sapato social,sandalia feminina,bolsa feminina,"
+    # Beleza e cuidados pessoais
+    "perfume feminino,perfume masculino,maquiagem,batom,base maquiagem,"
+    "creme facial,hidratante corporal,shampoo,condicionador,secador de cabelo,chapinha,"
+    # Esportes e fitness
+    "suplemento proteina,whey protein,bicicleta,patinete eletrico,"
+    "halteres,colchonete yoga,tenis corrida,mochila esportiva,"
+    # Brinquedos e games
+    "brinquedos,boneca,lego,carrinho brinquedo,jogo tabuleiro,jogo video game,"
+    # Pet
+    "racao cachorro,racao gato,cama pet,arranhador gato,coleira cachorro,"
+    # Bebê e infantil
+    "fralda,carrinho bebe,cadeirinha bebe,bercinho,"
+    # Livros e papelaria
+    "livros,kindle,material escolar"
 )
 
 
@@ -94,6 +116,7 @@ class AppConfig:
     mercadolivre_refresh_token: str = ""
     mercadolivre_affiliate_template: str = ""
     mercadolivre_affiliate_id: str = ""
+    mercadolivre_min_discount: int = 10
 
     shopee_feed_path: Path | None = None
     shopee_product_feed_url: str = ""
@@ -213,6 +236,7 @@ def load_config() -> AppConfig:
         mercadolivre_refresh_token=os.getenv("MERCADOLIVRE_REFRESH_TOKEN", ""),
         mercadolivre_affiliate_template=os.getenv("MERCADOLIVRE_AFFILIATE_TEMPLATE", ""),
         mercadolivre_affiliate_id=os.getenv("MERCADOLIVRE_AFFILIATE_ID", ""),
+        mercadolivre_min_discount=_int("MERCADOLIVRE_MIN_DISCOUNT", 10),
         shopee_feed_path=shopee_feed_path,
         shopee_product_feed_url=os.getenv("SHOPEE_PRODUCT_FEED_URL", ""),
         shopee_authorization_header=os.getenv("SHOPEE_AUTHORIZATION_HEADER", ""),

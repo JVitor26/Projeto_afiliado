@@ -20,10 +20,12 @@ class MercadoLivreClient:
         self.timeout = timeout
 
     def fetch(self, keyword: str, *, limit: int) -> list[Product]:
-        params = {
+        params: dict[str, object] = {
             "q": keyword,
             "limit": max(1, min(limit, 50)),
         }
+        if self.config.mercadolivre_min_discount > 0:
+            params["discount"] = f"{self.config.mercadolivre_min_discount}-100"
         url = (
             f"https://api.mercadolibre.com/sites/"
             f"{self.config.mercadolivre_site_id}/search?{urlencode(params)}"
