@@ -13,31 +13,34 @@
     favorites: new Set(JSON.parse(localStorage.getItem("lumina:favorites") || "[]")),
   };
 
-  const grid = document.getElementById("productGrid");
-  const template = document.getElementById("productCardTemplate");
-  const emptyState = document.getElementById("emptyState");
-  const searchInput = document.getElementById("searchInput");
-  const sortSelect = document.getElementById("sortSelect");
-  const minPriceInput = document.getElementById("minPriceInput");
-  const maxPriceInput = document.getElementById("maxPriceInput");
+  const grid           = document.getElementById("productGrid");
+  const template       = document.getElementById("productCardTemplate");
+  const emptyState     = document.getElementById("emptyState");
+  const searchInput    = document.getElementById("searchInput");
+  const sortSelect     = document.getElementById("sortSelect");
+  const minPriceInput  = document.getElementById("minPriceInput");
+  const maxPriceInput  = document.getElementById("maxPriceInput");
   const freeShippingOnly = document.getElementById("freeShippingOnly");
-  const sourceFilters = document.getElementById("sourceFilters");
-  const categoryRail = document.getElementById("categoryRail");
-  const categoryDetailPanel = document.getElementById("categoryDetailPanel");
-  const resultCount = document.getElementById("resultCount");
-  const clearFilters = document.getElementById("clearFilters");
-  const favoriteCount = document.getElementById("favoriteCount");
-  const drawer = document.getElementById("productDrawer");
-  const drawerContent = document.getElementById("drawerContent");
+  const sourceFilters  = document.getElementById("sourceFilters");
+  const categoryRail   = document.getElementById("categoryRail");
+  const resultCount    = document.getElementById("resultCount");
+  const clearFilters   = document.getElementById("clearFilters");
+  const favoriteCount  = document.getElementById("favoriteCount");
+  const drawer         = document.getElementById("productDrawer");
+  const drawerContent  = document.getElementById("drawerContent");
   const drawerBackdrop = document.getElementById("drawerBackdrop");
-  const drawerClose = document.getElementById("drawerClose");
+  const drawerClose    = document.getElementById("drawerClose");
   const favoritesButton = document.getElementById("favoritesButton");
-  const openBestDeal = document.getElementById("openBestDeal");
-  const heroFeature = document.getElementById("heroFeature");
-  const featuredList = document.getElementById("featuredList");
-  let motionObserver = null;
-  let imageObserver = null;
-  let parallaxFrame = 0;
+  const dailyDealsSection = document.getElementById("dailyDealsSection");
+  const dealsGrid      = document.getElementById("dealsGrid");
+  // Elementos opcionais (layout legado)
+  const categoryDetailPanel = document.getElementById("categoryDetailPanel");
+  const heroFeature    = document.getElementById("heroFeature");
+  const featuredList   = document.getElementById("featuredList");
+  const openBestDeal   = document.getElementById("openBestDeal");
+  let motionObserver   = null;
+  let imageObserver    = null;
+  let parallaxFrame    = 0;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const PREMIUM_SELLERS = new Set([
     "magazine",
@@ -67,12 +70,13 @@
     "electrolux",
   ]);
 
+  // Logos de marketplace: classe CSS + label exibido no badge
   const SOURCE_MARKS = {
-    mercadolivre: { name: "Mercado Livre", icon: "ML", bg: "#FFE600", fg: "#1a1a1a" },
-    amazon:       { name: "Amazon",        icon: "Am", bg: "#232F3E", fg: "#FF9900" },
-    aliexpress:   { name: "AliExpress",    icon: "Ali", bg: "#FF4600", fg: "#fff" },
-    shopee:       { name: "Shopee",        icon: "Sh", bg: "#EE4D2D", fg: "#fff" },
-    manual:       { name: "Manual",        icon: "✦",  bg: "#1C4D3D", fg: "#7CD6B2" },
+    mercadolivre: { cls: "mercadolivre", label: "MERCADO LIVRE" },
+    amazon:       { cls: "amazon",       label: "amazon"        },
+    aliexpress:   { cls: "aliexpress",   label: "AliExpress"    },
+    shopee:       { cls: "shopee",       label: "Shopee"        },
+    manual:       { cls: "manual",       label: "Manual"        },
   };
 
   const CATEGORY_TREE = [
@@ -437,27 +441,31 @@
       document.getElementById("catalogo").scrollIntoView({ behavior: "smooth" });
     });
 
-    openBestDeal.addEventListener("click", () => {
-      const best = sortProducts(products.slice(), "score")[0];
-      if (best) openDrawer(best);
-    });
+    if (openBestDeal) {
+      openBestDeal.addEventListener("click", () => {
+        const best = sortProducts(products.slice(), "score")[0];
+        if (best) openDrawer(best);
+      });
+    }
   }
 
   function renderFilters() {
     const sourceCounts = countBy(products, (product) => product.source);
     const sources = ["all", ...unique(products.map((product) => product.source))];
     if (state.favorites.size) sources.push("favorites");
+
+    // ── Source bar (logos de marketplace) ──
     sourceFilters.innerHTML = "";
     sources.forEach((source) => {
       const button = document.createElement("button");
-      button.className = `source-filter${state.source === source ? " active" : ""}`;
+      button.className = `src-btn${state.source === source ? " active" : ""}`;
       button.type = "button";
       button.dataset.source = source;
       const cnt = sourceCount(source, sourceCounts);
       if (source === "all" || source === "favorites") {
-        button.textContent = filterLabel(sourceLabel(source), cnt);
+        button.innerHTML = `${escapeHtml(sourceLabel(source))} <span class="src-count">(${cnt})</span>`;
       } else {
-        button.innerHTML = `${sourceMarkHTML(source)}<span class="src-count">&thinsp;(${cnt})</span>`;
+        button.innerHTML = `${sourceMarkHTML(source)} <span class="src-count">(${cnt})</span>`;
       }
       button.addEventListener("click", () => {
         state.source = source;
@@ -467,16 +475,15 @@
       sourceFilters.appendChild(button);
     });
 
+    // ── Category bar (pills horizontais) ──
     categoryRail.innerHTML = "";
-    const categories = [{ id: "all", label: "Todas as categorias" }, ...CATEGORY_TREE];
+    const categories = [{ id: "all", label: "Todas" }, ...CATEGORY_TREE];
     categories.forEach((category) => {
       const button = document.createElement("button");
-      button.className = `category-button${state.category === category.id ? " active" : ""}`;
+      button.className = `cat-btn${state.category === category.id ? " active" : ""}`;
       button.type = "button";
-      button.innerHTML = `
-        <span>${escapeHtml(category.label)}</span>
-        <small>${categoryCount(category.id)}</small>
-      `;
+      const cnt = categoryCount(category.id);
+      button.innerHTML = `${escapeHtml(category.label)}<span class="cat-count">(${cnt})</span>`;
       button.addEventListener("click", () => {
         state.category = category.id;
         state.subcategory = "all";
@@ -485,7 +492,9 @@
       });
       categoryRail.appendChild(button);
     });
-    renderCategoryDetails();
+
+    // Category detail panel (legado, se existir)
+    if (categoryDetailPanel) renderCategoryDetails();
     updateFavoriteCount();
   }
 
@@ -570,18 +579,19 @@
     const topCategory = strongestCategory(items);
 
     document.getElementById("metricProducts").textContent = items.length;
-    document.getElementById("metricDiscount").textContent = `${Math.round(maxDiscount)}%`;
-    document.getElementById("metricShipping").textContent = freeShipping;
-    document.getElementById("metricSources").textContent = sources;
-    document.getElementById("avgPrice").textContent = money(averagePrice);
-    document.getElementById("avgScore").textContent = Math.round(averageScore);
-    document.getElementById("topCategory").textContent = topCategory || "-";
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl("metricDiscount", `${Math.round(maxDiscount)}%`);
+    setEl("metricShipping", freeShipping);
+    setEl("metricSources",  sources);
+    setEl("avgPrice",       money(averagePrice));
+    setEl("avgScore",       Math.round(averageScore));
+    setEl("topCategory",    topCategory || "-");
   }
 
   function renderProducts() {
     const filtered = filterProducts(products);
-    const sorted = sortProducts(filtered, state.sort);
-    const groups = groupByDepartment(sorted);
+    const sorted   = sortProducts(filtered, state.sort);
+    const groups   = groupByDepartment(sorted);
     grid.innerHTML = "";
 
     sortGroupEntries(groups).forEach(([department, items]) => {
@@ -590,10 +600,10 @@
       section.innerHTML = `
         <div class="section-heading">
           <div>
-            <p class="eyebrow">${escapeHtml(sectionEyebrow(department))}</p>
+            <span class="eyebrow">${escapeHtml(sectionEyebrow(department))}</span>
             <h3>${escapeHtml(department)}</h3>
           </div>
-          <span>${items.length} ${items.length === 1 ? "oferta" : "ofertas"}</span>
+          <span class="section-count">${items.length} ${items.length === 1 ? "oferta" : "ofertas"}</span>
         </div>
       `;
       const sectionGrid = document.createElement("div");
@@ -607,10 +617,32 @@
     emptyState.hidden = sorted.length > 0;
     renderMetrics(filtered);
     updateFavoriteCount();
-    renderFeaturedHighlights(sorted);
+    renderDailyDeals(sorted);
+    // Featured legado (se elemento existir)
+    if (typeof renderFeaturedHighlights === "function" && (heroFeature || featuredList)) {
+      renderFeaturedHighlights(sorted);
+    }
     refreshMotionTargets();
-    // eagerly prime any images that are already within extended viewport
-    if (typeof primeVisibleImages === 'function') primeVisibleImages();
+    if (typeof primeVisibleImages === "function") primeVisibleImages();
+  }
+
+  function renderDailyDeals(sortedItems) {
+    if (!dailyDealsSection || !dealsGrid) return;
+    // Prioriza ofertas flash/diárias, depois por desconto
+    const topDeals = sortProducts(
+      sortedItems.filter((p) => p.discountPercent > 0 || isFlashOffer(p) || isDailyOffer(p)),
+      "discount"
+    ).slice(0, 8);
+
+    if (!topDeals.length) {
+      dailyDealsSection.hidden = true;
+      return;
+    }
+
+    dailyDealsSection.hidden = false;
+    dealsGrid.innerHTML = "";
+    topDeals.forEach((product) => dealsGrid.appendChild(renderProductCard(product)));
+    refreshMotionTargets();
   }
 
   function renderProductCard(product) {
@@ -637,32 +669,54 @@
     mediaButton.setAttribute("aria-label", `Ver detalhes de ${product.title}`);
     mediaButton.addEventListener("click", () => openDrawer(product));
 
+    // Logo do marketplace
     const srcPill = node.querySelector(".source-pill");
-    srcPill.dataset.source = product.source;
-    srcPill.innerHTML = sourceMarkHTML(product.source);
-    node.querySelector(".category-chip").textContent = product.department;
-    const discount = node.querySelector(".discount-pill");
-
-    if (isFlashOffer(product)) {
-      discount.textContent = "⚡ RELÂMPAGO";
-      discount.classList.add("is-flash");
-    } else if (isDailyOffer(product)) {
-      discount.textContent = "📅 OFERTA DO DIA";
-      discount.classList.add("is-daily");
-    } else {
-      discount.textContent = product.discountPercent ? `${Math.round(product.discountPercent)}% off` : shippingLabel(product);
-      discount.classList.toggle("is-shipping", !product.discountPercent && product.freeShipping);
+    if (srcPill) {
+      srcPill.dataset.source = product.source;
+      srcPill.innerHTML = sourceMarkHTML(product.source);
     }
-    node.querySelector("h3").textContent = product.title;
-    node.querySelector(".price-row strong").textContent = priceLabel(product);
-    const originalPrice = node.querySelector(".price-row s");
-    originalPrice.textContent = product.originalPrice ? money(product.originalPrice, product.currency) : "";
-    originalPrice.hidden = !product.originalPrice;
-    node.querySelector(".product-stats").innerHTML = buildStats(product);
-    node.querySelector(".details-button").addEventListener("click", () => openDrawer(product));
-    const buyButton = node.querySelector(".buy-button");
-    buyButton.href = product.affiliateUrl;
-    buyButton.textContent = "Comprar";
+    const catChip = node.querySelector(".category-chip");
+    if (catChip) catChip.textContent = product.department || "";
+
+    // Badge de desconto / oferta
+    const discount = node.querySelector(".discount-pill");
+    if (discount) {
+      if (isFlashOffer(product)) {
+        discount.textContent = "⚡ RELÂMPAGO";
+        discount.classList.add("is-flash");
+      } else if (isDailyOffer(product)) {
+        discount.textContent = "📅 OFERTA DO DIA";
+        discount.classList.add("is-daily");
+      } else if (product.discountPercent) {
+        discount.textContent = `${Math.round(product.discountPercent)}% off`;
+      } else if (product.freeShipping) {
+        discount.textContent = "Frete grátis";
+        discount.classList.add("is-shipping");
+      } else {
+        discount.hidden = true;
+      }
+    }
+
+    // Título e preços
+    const titleEl = node.querySelector(".card-title") || node.querySelector("h3");
+    if (titleEl) titleEl.textContent = product.title;
+
+    const priceNow = node.querySelector(".price-now") || node.querySelector(".price-row strong");
+    if (priceNow) priceNow.textContent = priceLabel(product);
+
+    const priceWas = node.querySelector(".price-was") || node.querySelector(".price-row s");
+    if (priceWas) {
+      priceWas.textContent = product.originalPrice ? money(product.originalPrice, product.currency) : "";
+      priceWas.hidden = !product.originalPrice;
+    }
+
+    // Ações
+    const detailsBtn = node.querySelector(".btn-details") || node.querySelector(".details-button");
+    if (detailsBtn) detailsBtn.addEventListener("click", () => openDrawer(product));
+
+    const buyBtn = node.querySelector(".btn-buy") || node.querySelector(".buy-button");
+    if (buyBtn) { buyBtn.href = product.affiliateUrl; buyBtn.textContent = "Comprar"; }
+
     return node;
   }
 
@@ -1152,8 +1206,9 @@
 
   function sourceMarkHTML(source) {
     const mark = SOURCE_MARKS[source];
-    if (!mark) return escapeHtml(sourceLabel(source));
-    return `<em class="src-mark" style="background:${mark.bg};color:${mark.fg}">${escapeHtml(mark.icon)}</em>${escapeHtml(mark.name)}`;
+    const cls  = mark ? `mp-logo--${mark.cls}` : "mp-logo--default";
+    const label = mark ? mark.label : sourceLabel(source);
+    return `<span class="mp-logo ${cls}">${escapeHtml(label)}</span>`;
   }
 
   function money(value, currency = "BRL") {
