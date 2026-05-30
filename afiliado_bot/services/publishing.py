@@ -54,52 +54,103 @@ def build_offer_message(product: Product, public_base_url: str = "") -> str:
     if public_base_url and product.id is not None:
         link = f"{public_base_url}/r/{product.id}"
 
-    source_name = {
+    source_name = _source_name(product.source)
+    price = _format_money(product.price, product.currency, source_name)
+
+    coupon_code = str(product.metadata.get("coupon_code") or "").strip()
+    coupon_discount = _as_float(product.metadata.get("coupon_discount"))
+    discount_pct = int(product.discount_percent or 0)
+    has_original = bool(product.original_price and product.original_price > product.price > 0)
+    is_flash = str(product.metadata.get("offer_type") or "").lower() in ("flash", "relâmpago", "deal_of_day")
+
+    # ── Cabeçalho com urgência ──────────────────────────────
+    if is_flash:
+        header = "⚡ <b>OFERTA RELÂMPAGO! CORRE!</b>"
+    elif coupon_code:
+        header = "🎟️ <b>CUPOM EXCLUSIVO DE DESCONTO!</b>"
+    elif discount_pct >= 60:
+        header = f"🚨 <b>IMPERDÍVEL — {discount_pct}% OFF!</b>"
+    elif discount_pct >= 40:
+        header = f"🔥 <b>OFERTA QUENTE — {discount_pct}% OFF!</b>"
+    elif discount_pct >= 20:
+        header = f"💥 <b>DESCONTO DE {discount_pct}% OFF!</b>"
+    else:
+        header = f"🛒 <b>OFERTA DO DIA — {source_name.upper()}!</b>"
+
+    lines = [header, ""]
+
+    # ── Produto ─────────────────────────────────────────────
+    lines.append(f"📦 {escape(product.title)}")
+    lines.append("")
+
+    # ── Preço ───────────────────────────────────────────────
+    if has_original:
+        original = _format_money(product.original_price, product.currency, source_name)
+        saving = product.original_price - product.price
+        saving_fmt = _format_money(saving, product.currency, source_name)
+        lines.append(f"🏷️ De: <s>{escape(original)}</s>")
+        lines.append(f"✅ <b>Por: {escape(price)}</b>{_payment_suffix(product)}")
+        lines.append(f"💰 <b>Economia de {escape(saving_fmt)}!</b>")
+    else:
+        lines.append(f"✅ <b>{escape(price)}</b>{_payment_suffix(product)}")
+
+    # ── Frete ───────────────────────────────────────────────
+    if product.free_shipping:
+        lines.append("🚚 <b>FRETE GRÁTIS!</b>")
+
+    # ── Parcelas ────────────────────────────────────────────
+    installment_line = _installment_line(product, source_name)
+    if installment_line:
+        lines.append(f"💳 Ou {escape(installment_line)}")
+
+    # ── Cupom ───────────────────────────────────────────────
+    if coupon_code or coupon_discount:
+        lines.append("")
+        if coupon_code:
+            lines.append(f"🎟️ <b>CUPOM:</b> <code>{escape(coupon_code)}</code>")
+        if coupon_discount:
+            cd_fmt = _format_money(coupon_discount, product.currency, source_name)
+            lines.append(f"   ↳ Desconto extra de <b>{escape(cd_fmt)}</b> na página!")
+        else:
+            lines.append("   ↳ Aplique o cupom na página do produto!")
+
+    # ── Código Mercado Livre ─────────────────────────────────
+    search_code = str(product.metadata.get("search_code") or "").strip()
+    if search_code:
+        lines.extend(["", f"🔎 <b>Busque no Mercado Livre:</b> {escape(search_code)}"])
+
+    # ── Avaliação e vendas ──────────────────────────────────
+    proof_parts = []
+    if product.rating and product.rating >= 4.0:
+        stars = "⭐" * min(5, round(product.rating))
+        proof_parts.append(f"{stars} {product.rating:.1f}/5")
+    if product.sold_quantity and product.sold_quantity >= 50:
+        proof_parts.append(f"🛍️ +{product.sold_quantity:,} vendidos")
+    if proof_parts:
+        lines.extend(["", " · ".join(proof_parts)])
+
+    # ── CTA ─────────────────────────────────────────────────
+    lines.extend([
+        "",
+        "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
+        f"👉 <b>COMPRAR AGORA</b>",
+        f"🔗 {escape(link, quote=True)}",
+        "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄",
+        "",
+        "<i>⚠️ Preços e disponibilidade podem variar. Confira antes de comprar.</i>",
+    ])
+
+    return "\n".join(lines)
+
+
+def _source_name(source: str) -> str:
+    return {
         "aliexpress": "AliExpress",
         "mercadolivre": "Mercado Livre",
         "shopee": "Shopee",
         "amazon": "Amazon",
         "manual": "Manual",
-    }.get(product.source, product.source.title())
-    price = _format_money(product.price, product.currency, source_name)
-    price_line = _price_line(product, price, source_name)
-    lines = [f"<b>{escape(product.title)}</b> | {price_line}"]
-
-    coupon_code = str(product.metadata.get("coupon_code") or "").strip()
-    coupon_discount = _as_float(product.metadata.get("coupon_discount"))
-    if coupon_code or coupon_discount:
-        discount_text = (
-            f" de {escape(_format_money(coupon_discount, product.currency, source_name))}"
-            if coupon_discount
-            else ""
-        )
-        coupon_suffix = f" Use o cupom <b>{escape(coupon_code)}</b>." if coupon_code else ""
-        lines.extend(["", f"✌️ Destaque o cupom{discount_text} na página do produto!{coupon_suffix}"])
-    elif product.discount_percent:
-        lines.extend(["", f"🔥 Oferta com {product.discount_percent:.0f}% OFF no produto!"])
-
-    if product.free_shipping:
-        lines.append("💸 Frete Grátis (Consultar CEP)")
-
-    installment_line = _installment_line(product, source_name)
-    if installment_line:
-        lines.append(f"✅ {installment_line}")
-
-    search_code = str(product.metadata.get("search_code") or "").strip()
-    if search_code:
-        lines.append(f"🔎 Código Mercado Livre: <b>{escape(search_code)}</b>")
-
-    if product.rating:
-        lines.append(f"⭐ Avaliação: {product.rating:.1f}/5")
-    if product.sold_quantity:
-        lines.append(f"🛍️ Vendidos: {product.sold_quantity}")
-
-    commission_rate = _as_float(product.metadata.get("commission_rate"))
-    if commission_rate:
-        lines.append(f"💰 Comissão: {commission_rate * 100:.2f}%")
-
-    lines.extend(["", f"➡️ <b>COMPRE PELO SITE:</b> {escape(link, quote=True)}"])
-    return "\n".join(lines)
+    }.get(source, source.title() if source else "Marketplace")
 
 
 def _price_line(product: Product, price: str, source_name: str) -> str:

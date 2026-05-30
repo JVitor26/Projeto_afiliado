@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      product_url:
+        description: "🔗 Cole aqui o link do produto (Amazon, AliExpress, Shopee ou Mercado Livre) para postar agora"
+        required: false
+        type: string
+        default: ""
   schedule:
     # GitHub usa UTC. Este agendamento roda a cada 8 minutos.
     - cron: "*/8 * * * *"
@@ -269,6 +274,22 @@ jobs:
           if [ -n "${MERCADOLIVRE_CLIENT_ID:-}" ] && [ -n "${MERCADOLIVRE_CLIENT_SECRET:-}" ] && [ -n "${MERCADOLIVRE_REFRESH_TOKEN:-}" ]; then
             python -m afiliado_bot mercadolivre-refresh-token --github-env
           fi
+
+      - name: Postar link manual (quando URL informada)
+        if: github.event_name == 'workflow_dispatch' && inputs.product_url != ''
+        shell: bash
+        env:
+          PRODUCT_URL: ${{ inputs.product_url }}
+        run: |
+          set -euo pipefail
+          echo "Processando link: ${PRODUCT_URL}"
+          python -m afiliado_bot init-db
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m afiliado_bot link-offer "${PRODUCT_URL}" --no-auto-publish
+          else
+            python -m afiliado_bot link-offer "${PRODUCT_URL}"
+          fi
+          python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
 
       - name: Publicar oferta
         shell: bash

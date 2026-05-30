@@ -191,6 +191,8 @@ def enrich_product_from_url(product: Product, config: AppConfig, *, timeout: int
         return _enrich_mercadolivre_product(product, config, timeout=timeout)
     if product.source == "aliexpress":
         return _enrich_aliexpress_product(product, timeout=timeout)
+    if product.source == "shopee":
+        return _enrich_shopee_product(product, timeout=timeout)
     return product
 
 
@@ -570,6 +572,83 @@ def _enrich_amazon_product(product: Product, *, timeout: int) -> Product:
     return product
 
 
+def _enrich_shopee_product(product: Product, *, timeout: int) -> Product:
+    """Extrai dados de produto Shopee via OG tags e padrões no HTML."""
+    try:
+        resolved_url, body = _resolve_url(product.affiliate_url or product.permalink, timeout=timeout)
+        if resolved_url:
+            product.permalink = resolved_url
+            product.metadata["resolved_url"] = resolved_url
+
+        # Título via OG (mais confiável para Shopee)
+        og_title = _meta_content(body, "og:title")
+        if og_title:
+            clean = re.sub(r"\s*[-|]\s*Shopee.*$", "", og_title, flags=re.IGNORECASE).strip()
+            if clean and len(clean) > 8:
+                product.title = clean
+
+        # Imagem via OG
+        og_image = _meta_content(body, "og:image")
+        if og_image and not product.image_url:
+            product.image_url = og_image
+
+        # Preço: OG tag primeiro, depois padrões no JS embutido
+        if product.price <= 0:
+            og_price_str = _meta_content(body, "og:price:amount") or _meta_content(body, "product:price:amount")
+            if og_price_str:
+                product.price = _as_float(og_price_str)
+
+        if product.price <= 0:
+            for pat in [
+                # Shopee usa centavos * 100000 em alguns endpoints
+                r'"price"\s*:\s*(\d{5,})',
+                r'"min_price"\s*:\s*(\d{5,})',
+                r'"discounted_price"\s*:\s*(\d{5,})',
+            ]:
+                m = re.search(pat, body)
+                if m:
+                    raw = int(m.group(1))
+                    product.price = round(raw / 100000, 2)
+                    break
+
+        # Preço original / desconto
+        for pat in [
+            r'"price_before_discount"\s*:\s*(\d{5,})',
+            r'"original_price"\s*:\s*(\d{5,})',
+        ]:
+            m = re.search(pat, body)
+            if m:
+                raw = int(m.group(1))
+                original = round(raw / 100000, 2)
+                if original > product.price > 0:
+                    product.original_price = original
+                break
+
+        # Frete grátis
+        if "frete grátis" in body.lower() or "free shipping" in body.lower():
+            product.free_shipping = True
+
+        # Cupom Shopee
+        coupon_m = re.search(r'"coupon_code"\s*:\s*"([A-Z0-9]{4,20})"', body, re.IGNORECASE)
+        if coupon_m and not product.metadata.get("coupon_code"):
+            product.metadata["coupon_code"] = coupon_m.group(1).upper()
+
+        # External ID (shop_id.item_id)
+        m = re.search(r"/i\.(\d+)\.(\d+)", resolved_url or product.permalink)
+        if m:
+            product.external_id = f"{m.group(1)}.{m.group(2)}"
+
+        if not product.category or product.category == "shopee":
+            product.category = _guess_category(product.title) or "shopee"
+
+        product.metadata["raw_source"] = "promo_text_shopee"
+
+    except Exception as exc:
+        product.metadata["enrichment_error"] = str(exc)
+
+    return product
+
+
 def _enrich_aliexpress_product(product: Product, *, timeout: int) -> Product:
     try:
         resolved_url, body = _resolve_url(product.affiliate_url or product.permalink, timeout=timeout)
@@ -745,6 +824,34 @@ def _apply_mercadolivre_html_metadata(product: Product, body: str) -> None:
     discount_match = re.search(r"(\d+%\s*OFF)", card, flags=re.IGNORECASE)
     if discount_match:
         product.metadata["discount_text"] = discount_match.group(1)
+
+    # Cupons e promoções do ML (extraídos do HTML da página)
+    if not product.metadata.get("coupon_code"):
+        for coupon_pat in [
+            r'(?:cupom|coupon|c[oó]digo(?:\s+de\s+desconto)?)\s*[:\-]?\s*([A-Z0-9]{4,20})',
+            r'"coupon_code"\s*:\s*"([A-Z0-9]{4,20})"',
+            r'data-coupon(?:-code)?=["\']([A-Z0-9]{4,20})["\']',
+        ]:
+            cm = re.search(coupon_pat, decoded, flags=re.IGNORECASE)
+            if cm:
+                code = cm.group(1).strip().upper()
+                if len(code) >= 4 and not code.startswith("HTTP"):
+                    product.metadata["coupon_code"] = code
+                    break
+
+    # Valor de cupom/desconto extra em R$
+    if not product.metadata.get("coupon_discount"):
+        for val_pat in [
+            r'desconto\s+(?:extra\s+)?(?:de\s+)?R\$\s*([\d.,]+)',
+            r'economize\s+(?:mais\s+)?R\$\s*([\d.,]+)',
+            r'"coupon_amount"\s*:\s*([\d.]+)',
+        ]:
+            vm = re.search(val_pat, decoded, flags=re.IGNORECASE)
+            if vm:
+                cd = _as_float(vm.group(1))
+                if cd > 0:
+                    product.metadata["coupon_discount"] = cd
+                    break
 
 
 def _strip_tags(value: str) -> str:
