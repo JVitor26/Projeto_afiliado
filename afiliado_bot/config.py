@@ -12,38 +12,53 @@ DEFAULT_ALIEXPRESS_FIELDS = (
     "discount,commission_rate,evaluate_rate,lastest_volume,first_level_category_name"
 )
 DEFAULT_KEYWORDS = (
-    # Tecnologia
-    "celular,smartphone,iphone,notebook,monitor,ssd,fone bluetooth,headset gamer,"
-    "smartwatch,tablet,caixa de som bluetooth,teclado gamer,mouse gamer,roteador wifi,"
-    "webcam,carregador turbo,power bank,"
-    # Eletrodomésticos e cozinha
-    "air fryer,fritadeira eletrica,panela eletrica,"
-    "liquidificador,cafeteira,aspirador de po,ventilador,climatizador,geladeira,"
-    "micro-ondas,maquina de lavar,lava e seca,purificador de agua,"
-    # Casa e decoração
-    "organizador,utensilios de cozinha,jogo de panelas,cama mesa banho,toalha,jogo de cama,"
-    "luminaria,suporte de parede,"
-    # Ferramentas
-    "furadeira,parafusadeira,ferramentas,lavadora de alta pressao,"
-    # Automotivo
-    "kit automotivo,acessorios carro,carregador veicular,camera veicular,som automotivo,"
-    # Moda e calçados
-    "moda feminina,calcado feminino,tenis esportivo,calca jeans,camiseta,vestido,"
-    "moda masculina,sapato social,sandalia feminina,bolsa feminina,"
-    # Beleza e cuidados pessoais
-    "perfume feminino,perfume masculino,maquiagem,batom,base maquiagem,"
-    "creme facial,hidratante corporal,shampoo,condicionador,secador de cabelo,chapinha,"
-    # Esportes e fitness
-    "suplemento proteina,whey protein,bicicleta,patinete eletrico,"
-    "halteres,colchonete yoga,tenis corrida,mochila esportiva,"
-    # Brinquedos e games
-    "brinquedos,boneca,lego,carrinho brinquedo,jogo tabuleiro,jogo video game,"
-    # Pet
-    "racao cachorro,racao gato,cama pet,arranhador gato,coleira cachorro,"
-    # Bebê e infantil
-    "fralda,carrinho bebe,cadeirinha bebe,bercinho,"
-    # Livros e papelaria
-    "livros,kindle,material escolar"
+    # ── Televisores e áudio (alta procura, ticket alto) ─────
+    "smart tv 4k,smart tv samsung,smart tv lg,televisor 4k,tv 50 polegadas,"
+    "tv 55 polegadas,tv 65 polegadas,soundbar,home theater,caixa de som jbl,"
+    "caixa de som bluetooth potente,subwoofer,receiver amplificador,projetor,"
+    # ── Celulares e acessórios ──────────────────────────────
+    "smartphone samsung,iphone,celular xiaomi,celular motorola,celular realme,"
+    "fone bluetooth,headset sem fio,airpods,smartwatch,tablet samsung,"
+    # ── Informática e games ─────────────────────────────────
+    "notebook samsung,notebook dell,notebook lenovo,notebook acer,monitor gamer,"
+    "ssd nvme,placa de video,memoria ram,processador,roteador wifi 6,"
+    "playstation 5,ps5,xbox series,nintendo switch,controle gamer,"
+    "cadeira gamer,mesa gamer,headset gamer,teclado mecanico,mouse gamer,"
+    # ── Eletrodomésticos de alto valor ──────────────────────
+    "geladeira inverse,geladeira frost free,adega climatizador,"
+    "maquina de lavar 11kg,maquina de lavar 12kg,lava e seca,"
+    "fogao 5 bocas,fogao cooktop,forno eletrico,lava-loucas,"
+    "ar condicionado split,ar condicionado portatil,"
+    "aspirador robot,aspirador sem fio,robo aspirador,"
+    # ── Cozinha premium ─────────────────────────────────────
+    "air fryer,fritadeira sem oleo,cafeteira nespresso,cafeteira expresso,"
+    "liquidificador,batedeira planetaria,processador de alimentos,panela de pressao,"
+    "panela eletrica de pressao,churrasqueira eletrica,jogo de panelas,"
+    # ── Moveis e casa ───────────────────────────────────────
+    "sofa,poltrona,mesa de jantar,mesa escritorio,escrivaninha,"
+    "guarda-roupa,armario,cama box,colchao,rack tv,estante,"
+    "luminaria teto,pendente,abajur,cortina blackout,"
+    # ── Ferramentas e construção ────────────────────────────
+    "furadeira parafusadeira,kit ferramentas,lavadora de alta pressao,"
+    "esmerilhadeira,compressor de ar,caixa de ferramentas,"
+    # ── Automotivo de alto interesse ────────────────────────
+    "camera veicular,som automotivo,central multimidia,gps veicular,"
+    "pneu,bateria automotiva,suporte celular carro,"
+    # ── Saúde e bem-estar ───────────────────────────────────
+    "massageador eletrico,medidor de pressao arterial,oximetro,"
+    "bicicleta ergometrica,esteira eletrica,eliptico,"
+    "suplemento proteina,whey protein,creatina,"
+    # ── Moda e acessórios de valor ──────────────────────────
+    "relogio masculino,relogio feminino,oculos de sol,bolsa feminina,"
+    "tenis esportivo,tenis corrida,calca jeans,jaqueta,"
+    # ── Beleza e cuidados ───────────────────────────────────
+    "perfume importado,perfume feminino,perfume masculino,"
+    "secador de cabelo profissional,chapinha,prancha,modelador,"
+    "maquiagem kit,base liquida,paleta de sombras,"
+    # ── Pet ─────────────────────────────────────────────────
+    "racao premium cachorro,racao premium gato,cama pet,arranhador gato,"
+    # ── Bebê ────────────────────────────────────────────────
+    "carrinho bebe,cadeirinha bebe carro,berco,kit higiene bebe"
 )
 
 
@@ -173,6 +188,13 @@ class AppConfig:
     whatsapp_graph_api_version: str = "v25.0"
     whatsapp_channel_url: str = ""
 
+    # WhatsApp nao-oficial para grupos (Evolution API ou Green API)
+    whatsapp_group_api_url: str = ""
+    whatsapp_group_api_key: str = ""
+    whatsapp_group_instance: str = ""
+    whatsapp_group_api_type: str = "evolution"
+    whatsapp_group_ids: list[str] = field(default_factory=list)
+
     webhook_urls: list[str] = field(default_factory=list)
 
     mine_limit_per_keyword: int = 20
@@ -217,14 +239,14 @@ def load_config() -> AppConfig:
             "KEYWORDS",
             DEFAULT_KEYWORDS,
         ),
-        deny_keywords=_csv("DENY_KEYWORDS", "usado,quebrado,defeito,recondicionado"),
-        min_price=_float("MIN_PRICE", 0.0),
+        deny_keywords=_csv("DENY_KEYWORDS", "usado,quebrado,defeito,recondicionado,replica,imitacao,falso"),
+        min_price=_float("MIN_PRICE", 50.0),           # ignora produtos abaixo de R$ 50
         max_price=_float("MAX_PRICE", 0.0),
-        min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 0.0),
-        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 15.0),
+        min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 10.0),  # mínimo 10% de desconto
+        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 20.0),  # qualidade mínima maior
         require_product_image=_bool("REQUIRE_PRODUCT_IMAGE", True),
-        min_sold_quantity=_int("MIN_SOLD_QUANTITY", 5),
-        min_seller_transactions=_int("MIN_SELLER_TRANSACTIONS", 25),
+        min_sold_quantity=_int("MIN_SOLD_QUANTITY", 10),   # mais popular (era 5)
+        min_seller_transactions=_int("MIN_SELLER_TRANSACTIONS", 50),  # vendedor mais confiável (era 25)
         manual_products_path=manual_products,
         manual_affiliate_template=os.getenv("MANUAL_AFFILIATE_TEMPLATE", ""),
         manual_affiliate_id=os.getenv("MANUAL_AFFILIATE_ID", ""),
@@ -287,6 +309,11 @@ def load_config() -> AppConfig:
         whatsapp_chat_ids=_csv("WHATSAPP_CHAT_IDS"),
         whatsapp_graph_api_version=os.getenv("WHATSAPP_GRAPH_API_VERSION", "v25.0"),
         whatsapp_channel_url=os.getenv("WHATSAPP_CHANNEL_URL", ""),
+        whatsapp_group_api_url=os.getenv("WHATSAPP_GROUP_API_URL", ""),
+        whatsapp_group_api_key=os.getenv("WHATSAPP_GROUP_API_KEY", ""),
+        whatsapp_group_instance=os.getenv("WHATSAPP_GROUP_INSTANCE", ""),
+        whatsapp_group_api_type=os.getenv("WHATSAPP_GROUP_API_TYPE", "evolution"),
+        whatsapp_group_ids=_csv("WHATSAPP_GROUP_IDS"),
         webhook_urls=_csv("SOCIAL_WEBHOOK_URLS"),
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
         mining_parallel_keywords=_int("MINING_PARALLEL_KEYWORDS", 4),
