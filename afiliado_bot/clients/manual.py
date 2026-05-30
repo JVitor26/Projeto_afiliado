@@ -656,20 +656,57 @@ def _enrich_aliexpress_product(product: Product, *, timeout: int) -> Product:
             product.permalink = resolved_url
             product.metadata["resolved_url"] = resolved_url
 
-        # Tenta extrair titulo do HTML
-        title_match = re.search(r'<h1[^>]*>([^<]+)</h1>', body, re.IGNORECASE)
-        if title_match:
-            extracted_title = title_match.group(1).strip()
-            if extracted_title and not product.title.startswith("Oferta "):
-                product.title = extracted_title[:200]
+        # Título: H1 ou OG tag
+        og_title = _meta_content(body, "og:title")
+        if og_title and not product.title.startswith("Oferta "):
+            clean = re.sub(r"\s*[-|]\s*AliExpress.*$", "", og_title, flags=re.IGNORECASE).strip()
+            if clean and len(clean) > 8:
+                product.title = clean[:200]
+        else:
+            h1 = re.search(r'<h1[^>]*>([^<]+)</h1>', body, re.IGNORECASE)
+            if h1 and not product.title.startswith("Oferta "):
+                product.title = h1.group(1).strip()[:200]
 
-        # Tenta extrair preco do JSON/script
-        price_match = re.search(r'"(?:price|priceDisplay|salePrice)"[^:]*:\s*([0-9.]+)', body)
-        if price_match and product.price <= 0:
-            try:
-                product.price = float(price_match.group(1))
-            except (ValueError, IndexError):
-                pass
+        # Imagem: OG tag primeiro, depois padrões no JSON/script
+        if not product.image_url:
+            og_image = _meta_content(body, "og:image")
+            if og_image:
+                product.image_url = og_image
+
+        if not product.image_url:
+            for img_pat in [
+                r'"mainImageUrl"\s*:\s*"((?:https?:)?//[^"]+)"',
+                r'"imageUrl"\s*:\s*"((?:https?:)?//[^"]+)"',
+                r'"productImage"\s*:\s*"((?:https?:)?//[^"]+)"',
+                r'((?:https?:)?//ae0[0-9]\.alicdn\.com/kf/[^\s"\'<>]+\.(?:jpg|jpeg|png|webp))',
+            ]:
+                m = re.search(img_pat, body, re.IGNORECASE)
+                if m:
+                    img = m.group(1)
+                    if img.startswith("//"):
+                        img = "https:" + img
+                    product.image_url = img
+                    break
+
+        # Preço do JSON/script
+        if product.price <= 0:
+            price_match = re.search(r'"(?:price|priceDisplay|salePrice|minActivityAmount)"\s*[^:]*:\s*([0-9.]+)', body)
+            if price_match:
+                try:
+                    product.price = float(price_match.group(1))
+                except (ValueError, IndexError):
+                    pass
+
+        # Preço original
+        if not product.original_price:
+            orig_match = re.search(r'"(?:originalPrice|originalAmount)"\s*[^:]*:\s*([0-9.]+)', body)
+            if orig_match:
+                try:
+                    orig = float(orig_match.group(1))
+                    if orig > product.price > 0:
+                        product.original_price = orig
+                except (ValueError, IndexError):
+                    pass
 
         product.metadata["raw_source"] = "promo_text_aliexpress"
     except Exception:

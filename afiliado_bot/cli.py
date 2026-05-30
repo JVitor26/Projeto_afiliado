@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
 import json
 import os
 import sys
@@ -1036,7 +1037,13 @@ def add_promo_product(
         except RuntimeError as exc:
             product.metadata["enrichment_error"] = str(exc)
 
-    ranker = ProductRanker(config, storage.category_boosts())
+    # Para produtos submetidos manualmente (link-offer), não rejeitar por falta
+    # de imagem — AliExpress/Shopee raramente servem imagem no HTML estático.
+    ranker_config = config
+    if not require_details and not product.image_url.strip():
+        ranker_config = dataclasses.replace(config, require_product_image=False)
+
+    ranker = ProductRanker(ranker_config, storage.category_boosts())
     reason = ranker.reject_reason(product)
     if not reason and require_details and _missing_required_details(product):
         reason = "nao consegui montar titulo e preco pelo link; cole o material completo ou verifique o link"
