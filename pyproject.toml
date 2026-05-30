@@ -5,5 +5,8 @@ description = "Sistema de mineracao e publicacao automatica de ofertas afiliadas
 requires-python = ">=3.11"
 dependencies = []
 
+[tool.setuptools.packages.find]
+include = ["afiliado_bot*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
