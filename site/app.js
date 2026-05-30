@@ -969,7 +969,7 @@
           motionObserver.unobserve(entry.target);
         });
       },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.12 }
+      { rootMargin: "300px 0px 300px 0px", threshold: 0 }
     );
     window.addEventListener("scroll", requestParallax, { passive: true });
     window.addEventListener("resize", requestParallax, { passive: true });
@@ -982,9 +982,17 @@
     targets.forEach((target, index) => {
       if (target.dataset.motionBound) return;
       target.dataset.motionBound = "true";
-      target.style.transitionDelay = `${Math.min((index % 10) * 42, 320)}ms`;
+      target.style.transitionDelay = `${Math.min((index % 10) * 42, 220)}ms`;
       if (motionObserver) motionObserver.observe(target);
       else target.classList.add("is-visible");
+    });
+    // Garante que elementos já no viewport fiquem visíveis mesmo se o observer demorar
+    requestAnimationFrame(() => {
+      document.querySelectorAll(".product-card:not(.is-visible), .category-section:not(.is-visible)").forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const inView = rect.top < window.innerHeight + 400 && rect.bottom > -400;
+        if (inView) el.classList.add("is-visible");
+      });
     });
   }
 
