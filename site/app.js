@@ -648,26 +648,31 @@
   function renderProductCard(product) {
     const node = template.content.firstElementChild.cloneNode(true);
     const favoriteButton = node.querySelector(".favorite-toggle");
-    const mediaButton = node.querySelector(".product-media");
+    // Suporta template novo (.card-media) e legado (.product-media)
+    const mediaButton = node.querySelector(".card-media") || node.querySelector(".product-media");
     const image = document.createElement("img");
     const isFavorite = state.favorites.has(String(product.id));
 
-    favoriteButton.classList.toggle("active", isFavorite);
-    favoriteButton.textContent = isFavorite ? "♥" : "♡";
-    favoriteButton.addEventListener("click", () => toggleFavorite(product));
+    if (favoriteButton) {
+      favoriteButton.classList.toggle("active", isFavorite);
+      favoriteButton.innerHTML = isFavorite
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+      favoriteButton.addEventListener("click", () => toggleFavorite(product));
+    }
 
-    // Use data-src + IntersectionObserver to preload images earlier without forcing all to eager
     image.dataset.src = product.imageUrl || fallbackImage;
     image.src = fallbackImage;
     image.alt = product.title;
     image.loading = "lazy";
-    image.onerror = () => {
-      image.src = fallbackImage;
-    };
-    mediaButton.appendChild(image);
-    if (imageObserver) imageObserver.observe(image);
-    mediaButton.setAttribute("aria-label", `Ver detalhes de ${product.title}`);
-    mediaButton.addEventListener("click", () => openDrawer(product));
+    image.onerror = () => { image.src = fallbackImage; };
+
+    if (mediaButton) {
+      mediaButton.appendChild(image);
+      if (imageObserver) imageObserver.observe(image);
+      mediaButton.setAttribute("aria-label", `Ver detalhes de ${product.title}`);
+      mediaButton.addEventListener("click", () => openDrawer(product));
+    }
 
     // Logo do marketplace
     const srcPill = node.querySelector(".source-pill");
