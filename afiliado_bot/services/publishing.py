@@ -5,7 +5,7 @@ from html import escape
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 from afiliado_bot.posters.base import Poster
-from afiliado_bot.storage import Storage
+from afiliado_bot.storage import Storage, are_titles_similar
 
 
 class PublishingService:
@@ -28,8 +28,19 @@ class PublishingService:
                 cooldown_minutes=self.config.repost_after_minutes,
             )
 
+        # Títulos publicados recentemente (últimas 48h) para evitar duplicatas entre runs
+        recent_titles = self.storage.recently_published_titles(hours=48)
+
         sent = 0
+        published_this_run: list[str] = []  # títulos postados nesta execução
+
         for product in products:
+            # Checa similaridade com publicações recentes e com esta execução
+            all_recent = recent_titles + published_this_run
+            if any(are_titles_similar(product.title, t) for t in all_recent):
+                print(f"  [skip] produto similar ja publicado recentemente: {product.title[:60]}")
+                continue
+
             message = build_offer_message(product, self.config.public_base_url)
             for poster in self.posters:
                 results = poster.post(message, product)
@@ -46,6 +57,10 @@ class PublishingService:
                         )
                     if result.success:
                         sent += 1
+
+            if not dry_run:
+                published_this_run.append(product.title)
+
         return sent
 
 

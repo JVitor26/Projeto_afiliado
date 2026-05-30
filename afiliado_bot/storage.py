@@ -18,6 +18,25 @@ _TITLE_NOISE = frozenset({
     "roxo", "roxa", "lilas", "bege", "marrom",
 })
 _NOISE_RE = re.compile(r'[^a-z0-9\s]')
+# Threshold Jaccard: >= 60% das palavras em comum = mesmo produto/família
+_SIMILARITY_THRESHOLD = 0.60
+
+
+def _title_tokens(title: str) -> frozenset[str]:
+    """Retorna conjunto de tokens relevantes do título (sem stopwords, mín. 3 chars)."""
+    text = _NOISE_RE.sub(' ', title.lower())
+    return frozenset(w for w in text.split() if w not in _TITLE_NOISE and len(w) >= 3)
+
+
+def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def are_titles_similar(title_a: str, title_b: str, threshold: float = _SIMILARITY_THRESHOLD) -> bool:
+    """Retorna True se os dois títulos parecem ser o mesmo produto (variação de cor/sabor/tamanho)."""
+    return _jaccard(_title_tokens(title_a), _title_tokens(title_b)) >= threshold
 
 
 def _normalize_title(title: str) -> str:
@@ -27,18 +46,32 @@ def _normalize_title(title: str) -> str:
 
 
 def _dedup_by_title(products: list[Product], limit: int) -> list[Product]:
-    """Mantém a ordem original, mas para títulos similares, preserva apenas o mais barato."""
-    groups: dict[str, Product] = {}
-    order: list[str] = []
+    """Remove produtos similares (Jaccard >= threshold), mantendo o de melhor score/preço."""
+    kept: list[Product] = []
+    kept_tokens: list[frozenset[str]] = []
     for p in products:
-        norm = _normalize_title(p.title)
-        key = norm if norm else f"__{p.id or id(p)}__"
-        if key not in groups:
-            groups[key] = p
-            order.append(key)
-        elif norm and p.price > 0 and (groups[key].price <= 0 or p.price < groups[key].price):
-            groups[key] = p
-    return [groups[k] for k in order][:limit]
+        toks = _title_tokens(p.title)
+        duplicate_idx = -1
+        for i, kt in enumerate(kept_tokens):
+            if _jaccard(toks, kt) >= _SIMILARITY_THRESHOLD:
+                duplicate_idx = i
+                break
+        if duplicate_idx == -1:
+            kept.append(p)
+            kept_tokens.append(toks)
+        else:
+            # Mantém o de melhor score; se igual, o mais barato
+            incumbent = kept[duplicate_idx]
+            if p.score > incumbent.score or (p.score == incumbent.score and p.price > 0 and (incumbent.price <= 0 or p.price < incumbent.price)):
+                kept[duplicate_idx] = p
+                kept_tokens[duplicate_idx] = toks
+        if len(kept) >= limit * 3:  # para não processar toda a lista
+            break
+    return kept[:limit]
+
+
+def _hours_ago_iso(hours: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(microsecond=0).isoformat()
 
 
 class Storage:
@@ -236,6 +269,23 @@ class Storage:
         with self.session() as conn:
             row = conn.execute("select * from products where id = ?", (product_id,)).fetchone()
         return self._row_to_product(row) if row else None
+
+    def recently_published_titles(self, *, hours: int = 48) -> list[str]:
+        """Retorna títulos de produtos publicados com sucesso nas últimas N horas."""
+        cutoff = _hours_ago_iso(hours)
+        with self.session() as conn:
+            rows = conn.execute(
+                """
+                select distinct p.title
+                from products p
+                join posts po on po.product_id = p.id
+                where po.status = 'sent' and po.posted_at >= ?
+                order by po.posted_at desc
+                limit 300
+                """,
+                (cutoff,),
+            ).fetchall()
+        return [str(row["title"]) for row in rows if row["title"]]
 
     def add_post(self, product_id: int, channel: str, status: str, message: str, response: str = "") -> None:
         now = utc_now_iso()
