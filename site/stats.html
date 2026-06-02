@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromoLink Brasil — Estatísticas</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #f97316;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; padding: 1.5rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+    h1 span { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .card .label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .4rem; }
+    .card .value { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--border); font-size: .875rem; }
+    th { color: var(--muted); font-weight: 600; }
+    tr:hover td { background: var(--card); }
+    h2 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .75rem; }
+    .section { margin-bottom: 2.5rem; }
+    #no-data { color: var(--muted); text-align: center; padding: 3rem; }
+  </style>
+</head>
+<body>
+  <h1>PromoLink Brasil — <span>Dashboard</span></h1>
+  <div id="no-data" style="display:none">
+    stats.js não encontrado. Execute: <code>python -m afiliado_bot generate-stats</code>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="grid" id="kpis"></div>
+
+    <div class="section">
+      <h2>Cliques por fonte</h2>
+      <table id="tbl-source">
+        <thead><tr><th>Fonte</th><th>Cliques</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Top categorias por cliques</h2>
+      <table id="tbl-category">
+        <thead><tr><th>Categoria</th><th>Cliques</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Top produtos (score)</h2>
+      <table id="tbl-products">
+        <thead><tr><th>Título</th><th>Fonte</th><th>Preço</th><th>Score</th><th>Posts</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="stats.js" onerror="document.getElementById('no-data').style.display='block'"></script>
+  <script>
+    if (typeof window.LUMINA_STATS === 'undefined') {
+      document.getElementById('no-data').style.display = 'block';
+    } else {
+      document.getElementById('content').style.display = 'block';
+      const s = window.LUMINA_STATS;
+
+      // KPIs
+      const kpis = [
+        { label: 'Produtos', value: s.products ?? 0 },
+        { label: 'Posts enviados', value: s.posts_sent ?? 0 },
+        { label: 'Cliques', value: s.clicks ?? 0 },
+        { label: 'Vendas', value: s.sales ?? 0 },
+      ];
+      const kpiEl = document.getElementById('kpis');
+      kpis.forEach(k => {
+        kpiEl.innerHTML += `<div class="card"><div class="label">${k.label}</div><div class="value">${k.value.toLocaleString('pt-BR')}</div></div>`;
+      });
+
+      // Cliques por fonte
+      const srcTbody = document.querySelector('#tbl-source tbody');
+      (s.clicks_by_source || []).forEach(r => {
+        srcTbody.innerHTML += `<tr><td>${r.source}</td><td>${r.clicks}</td></tr>`;
+      });
+      if (!(s.clicks_by_source || []).length) srcTbody.innerHTML = '<tr><td colspan="2" style="color:var(--muted)">Nenhum clique registrado ainda</td></tr>';
+
+      // Cliques por categoria
+      const catTbody = document.querySelector('#tbl-category tbody');
+      (s.clicks_by_category || []).forEach(r => {
+        catTbody.innerHTML += `<tr><td>${r.category}</td><td>${r.clicks}</td></tr>`;
+      });
+      if (!(s.clicks_by_category || []).length) catTbody.innerHTML = '<tr><td colspan="2" style="color:var(--muted)">Nenhum clique registrado ainda</td></tr>';
+
+      // Top produtos
+      const pTbody = document.querySelector('#tbl-products tbody');
+      (s.top_products || []).forEach(p => {
+        const price = p.price ? `R$ ${Number(p.price).toFixed(2).replace('.', ',')}` : '—';
+        pTbody.innerHTML += `<tr><td>${p.title}</td><td>${p.source}</td><td>${price}</td><td>${Number(p.score).toFixed(1)}</td><td>${p.published_count ?? 0}</td></tr>`;
+      });
+    }
+  </script>
+</body>
+</html>

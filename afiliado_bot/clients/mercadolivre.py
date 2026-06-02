@@ -9,7 +9,7 @@ from afiliado_bot.affiliates import apply_affiliate_template
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
-from .base import ProviderError
+from .base import ProviderError, retry_http
 
 
 class MercadoLivreClient:
@@ -255,11 +255,15 @@ class MercadoLivreClient:
         if use_token:
             headers["Authorization"] = f"Bearer {self.config.mercadolivre_access_token}"
         request = Request(url, headers=headers)
-        with urlopen(request, timeout=self.timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if not isinstance(payload, dict):
-            raise ProviderError("Mercado Livre retornou resposta invalida")
-        return payload
+
+        def _do() -> dict[str, object]:
+            with urlopen(request, timeout=self.timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ProviderError("Mercado Livre retornou resposta invalida")
+            return payload
+
+        return retry_http(_do)
 
 
 def _as_float(value: object) -> float:

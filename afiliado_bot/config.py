@@ -179,6 +179,8 @@ class AppConfig:
 
     telegram_bot_token: str = ""
     telegram_chat_ids: list[str] = field(default_factory=list)
+    telegram_tech_bot_token: str = ""
+    telegram_tech_chat_ids: list[str] = field(default_factory=list)
     telegram_parse_mode: str = "HTML"
     telegram_disable_web_page_preview: bool = False
 
@@ -303,6 +305,8 @@ def load_config() -> AppConfig:
         amazon_affiliate_template=os.getenv("AMAZON_AFFILIATE_TEMPLATE", ""),
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_ids=_csv("TELEGRAM_CHAT_IDS"),
+        telegram_tech_bot_token=os.getenv("TELEGRAM_TECH_BOT_TOKEN", ""),
+        telegram_tech_chat_ids=_csv("TELEGRAM_TECH_CHAT_IDS"),
         telegram_parse_mode=os.getenv("TELEGRAM_PARSE_MODE", "HTML"),
         telegram_disable_web_page_preview=_bool("TELEGRAM_DISABLE_WEB_PAGE_PREVIEW", False),
         whatsapp_access_token=os.getenv("WHATSAPP_ACCESS_TOKEN", ""),

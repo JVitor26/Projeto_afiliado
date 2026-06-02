@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E0E0E"/>
+      <stop offset="100%" stop-color="#1a0a00"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#E8321E"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Glow top-left -->
+  <ellipse cx="200" cy="150" rx="300" ry="200" fill="rgba(232,50,30,0.08)"/>
+
+  <!-- Accent bar bottom -->
+  <rect x="0" y="590" width="1200" height="6" fill="url(#accent)"/>
+
+  <!-- Fire emoji area -->
+  <text x="90" y="280" font-size="130" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">🔥</text>
+
+  <!-- Brand name -->
+  <text x="260" y="220" font-family="Inter, Arial Black, sans-serif" font-size="78" font-weight="900" fill="#F2F2F2">Promo</text>
+  <text x="579" y="220" font-family="Inter, Arial Black, sans-serif" font-size="78" font-weight="900" fill="#E8321E">Link</text>
+  <text x="260" y="290" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="700" fill="#FFB800" letter-spacing="6">BRASIL</text>
+
+  <!-- Tagline -->
+  <text x="260" y="370" font-family="Inter, Arial, sans-serif" font-size="36" fill="#C0C0C0">As melhores ofertas em tempo real</text>
+
+  <!-- Marketplace badges -->
+  <rect x="260" y="410" width="180" height="42" rx="8" fill="rgba(255,255,255,0.07)"/>
+  <text x="350" y="438" font-family="Arial, sans-serif" font-size="18" fill="#F2F2F2" text-anchor="middle">Mercado Livre</text>
+
+  <rect x="455" y="410" width="130" height="42" rx="8" fill="rgba(255,255,255,0.07)"/>
+  <text x="520" y="438" font-family="Arial, sans-serif" font-size="18" fill="#F2F2F2" text-anchor="middle">Amazon</text>
+
+  <rect x="600" y="410" width="150" height="42" rx="8" fill="rgba(255,255,255,0.07)"/>
+  <text x="675" y="438" font-family="Arial, sans-serif" font-size="18" fill="#F2F2F2" text-anchor="middle">AliExpress</text>
+
+  <rect x="765" y="410" width="110" height="42" rx="8" fill="rgba(255,255,255,0.07)"/>
+  <text x="820" y="438" font-family="Arial, sans-serif" font-size="18" fill="#F2F2F2" text-anchor="middle">Shopee</text>
+
+  <!-- CTA -->
+  <rect x="260" y="490" width="340" height="60" rx="12" fill="#229ed9"/>
+  <text x="430" y="527" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">📲 Entrar no Telegram</text>
+
+  <!-- URL -->
+  <text x="260" y="570" font-family="Inter, Arial, sans-serif" font-size="20" fill="#606060">t.me/PromoLinkBrasil99</text>
+</svg>

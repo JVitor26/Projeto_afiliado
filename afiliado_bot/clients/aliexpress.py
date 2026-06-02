@@ -15,7 +15,7 @@ from afiliado_bot.affiliates import apply_affiliate_template
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
-from .base import ProviderError
+from .base import ProviderError, retry_http
 
 
 class AliExpressClient:
@@ -87,8 +87,10 @@ class AliExpressClient:
             headers={"User-Agent": "afiliado-bot/0.1", "Accept": "application/json"},
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            def _do_ali_api() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            payload = retry_http(_do_ali_api)
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise ProviderError(f"AliExpress API HTTP {exc.code}: {body[:300]}") from exc
@@ -114,8 +116,10 @@ class AliExpressClient:
                 headers["Authorization"] = self.config.aliexpress_authorization_header
             request = Request(f"{self.config.aliexpress_product_feed_url}{separator}{params}", headers=headers)
             try:
-                with urlopen(request, timeout=self.timeout) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
+                def _do_ali_feed() -> object:
+                    with urlopen(request, timeout=self.timeout) as response:
+                        return json.loads(response.read().decode("utf-8"))
+                payload = retry_http(_do_ali_feed)
             except HTTPError as exc:
                 body = exc.read().decode("utf-8", errors="replace")
                 raise ProviderError(f"AliExpress feed HTTP {exc.code}: {body[:300]}") from exc

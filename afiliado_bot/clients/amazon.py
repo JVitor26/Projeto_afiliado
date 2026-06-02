@@ -16,7 +16,7 @@ from afiliado_bot.affiliates import apply_affiliate_template
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
-from .base import ProviderError
+from .base import ProviderError, retry_http
 
 
 class AmazonClient:
@@ -88,8 +88,10 @@ class AmazonClient:
             headers["Authorization"] = self.config.amazon_authorization_header
         request = Request(f"{url}{separator}{params}", headers=headers)
         try:
-            with urlopen(request, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            def _do_creators() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            payload = retry_http(_do_creators)
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise ProviderError(f"Amazon Creators API HTTP {exc.code}: {body[:300]}") from exc
@@ -137,8 +139,10 @@ class AmazonClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
-                response_payload = json.loads(response.read().decode("utf-8"))
+            def _do_official() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            response_payload = retry_http(_do_official)
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise ProviderError(f"Amazon Creators API HTTP {exc.code}: {body[:300]}") from exc
@@ -175,8 +179,10 @@ class AmazonClient:
             self.config.amazon_creators_credential_secret,
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            def _do_token() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            payload = retry_http(_do_token)
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise ProviderError(f"Amazon Creators token HTTP {exc.code}: {body[:300]}") from exc
@@ -220,8 +226,10 @@ class AmazonClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
-                response_payload = json.loads(response.read().decode("utf-8"))
+            def _do_paapi() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            response_payload = retry_http(_do_paapi)
         except HTTPError as exc:
             body_text = exc.read().decode("utf-8", errors="replace")
             raise ProviderError(f"Amazon PA-API HTTP {exc.code}: {body_text[:300]}") from exc
@@ -241,8 +249,10 @@ class AmazonClient:
                 headers["Authorization"] = self.config.amazon_authorization_header
             request = Request(f"{self.config.amazon_product_feed_url}{separator}{params}", headers=headers)
             try:
-                with urlopen(request, timeout=self.timeout) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
+                def _do_feed() -> object:
+                    with urlopen(request, timeout=self.timeout) as response:
+                        return json.loads(response.read().decode("utf-8"))
+                payload = retry_http(_do_feed)
             except HTTPError as exc:
                 body = exc.read().decode("utf-8", errors="replace")
                 raise ProviderError(f"Amazon feed HTTP {exc.code}: {body[:300]}") from exc

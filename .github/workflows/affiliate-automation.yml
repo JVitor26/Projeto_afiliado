@@ -41,6 +41,8 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+      TELEGRAM_TECH_BOT_TOKEN: ${{ secrets.TELEGRAM_TECH_BOT_TOKEN }}
+      TELEGRAM_TECH_CHAT_IDS: ${{ secrets.TELEGRAM_TECH_CHAT_IDS }}
       MERCADOLIVRE_CLIENT_ID: ${{ secrets.MERCADOLIVRE_CLIENT_ID }}
       MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
       MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
@@ -212,12 +214,16 @@ jobs:
           set -euo pipefail
 
           telegram="nao"
+          telegram_tech="nao"
           whatsapp_numero="nao"
           webhook="nao"
           whatsapp_canal="nao"
 
           if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_IDS:-}" ]; then
             telegram="sim"
+          fi
+          if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_TECH_CHAT_IDS:-}" ]; then
+            telegram_tech="sim"
           fi
           if [ -n "${WHATSAPP_ACCESS_TOKEN:-}" ] && [ -n "${WHATSAPP_PHONE_NUMBER_ID:-}" ] && [ -n "${WHATSAPP_CHAT_IDS:-}" ]; then
             whatsapp_numero="sim"
@@ -229,7 +235,8 @@ jobs:
             whatsapp_canal="sim"
           fi
 
-          echo "Telegram configurado: $telegram"
+          echo "Telegram (geral) configurado: $telegram"
+          echo "Telegram (tech) configurado: $telegram_tech"
           echo "WhatsApp por numero configurado: $whatsapp_numero"
           echo "Webhook configurado: $webhook"
           echo "Canal do WhatsApp informado: $whatsapp_canal"
@@ -315,6 +322,7 @@ jobs:
           set -euo pipefail
           python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
+          python -m afiliado_bot generate-stats
           python -m afiliado_bot stats
 
       - name: Salvar banco do bot

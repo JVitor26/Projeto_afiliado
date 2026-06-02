@@ -89,7 +89,7 @@ class CoreTests(unittest.TestCase):
             captured["data"] = parse_qs(request.data.decode("utf-8"))
             return FakeTokenResponse()
 
-        with patch("afiliado_bot.cli.urlopen", fake_urlopen):
+        with patch("afiliado_bot.commands.mercadolivre.urlopen", fake_urlopen):
             payload = refresh_mercadolivre_token("app-id", "secret", "refresh-atual")
 
         self.assertEqual(captured["data"]["grant_type"], ["refresh_token"])
@@ -793,6 +793,171 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["whatsapp_channel"]["send_mode"], "image")
         self.assertEqual(calls[0][1]["whatsapp_channel"]["text"], "*Oferta Mercado Livre*")
         self.assertEqual(calls[0][1]["product"]["discount_percent"], product.discount_percent)
+
+
+class RetryTests(unittest.TestCase):
+    def test_retry_succeeds_after_transient_503(self):
+        from urllib.error import HTTPError
+        from afiliado_bot.clients.base import retry_http
+
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) < 3:
+                raise HTTPError("http://x", 503, "Service Unavailable", {}, None)
+            return "ok"
+
+        result = retry_http(flaky, attempts=3, base_delay=0)
+        self.assertEqual(result, "ok")
+        self.assertEqual(len(calls), 3)
+
+    def test_retry_raises_on_non_retryable_404(self):
+        from urllib.error import HTTPError
+        from afiliado_bot.clients.base import retry_http
+
+        def always_404():
+            raise HTTPError("http://x", 404, "Not Found", {}, None)
+
+        with self.assertRaises(HTTPError) as ctx:
+            retry_http(always_404, attempts=3, base_delay=0)
+        self.assertEqual(ctx.exception.code, 404)
+
+    def test_retry_exhausts_all_attempts_on_persistent_503(self):
+        from urllib.error import HTTPError
+        from afiliado_bot.clients.base import retry_http
+
+        calls = []
+
+        def always_503():
+            calls.append(1)
+            raise HTTPError("http://x", 503, "Service Unavailable", {}, None)
+
+        with self.assertRaises(HTTPError):
+            retry_http(always_503, attempts=3, base_delay=0)
+        self.assertEqual(len(calls), 3)
+
+
+class AlertTests(unittest.TestCase):
+    def test_publish_sends_alert_when_zero_products_sent(self):
+        import tempfile
+        from pathlib import Path
+        from afiliado_bot.config import AppConfig
+        from afiliado_bot.services.publishing import PublishingService
+        from afiliado_bot.storage import Storage
+
+        sent_alerts = []
+
+        class MockPoster:
+            channel = "telegram"
+
+            def post(self, message, product):
+                return []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "test.db")
+            storage.init_db()
+
+            config = AppConfig(
+                telegram_bot_token="fake-token",
+                telegram_chat_ids=["@canal"],
+                min_score_to_publish=0.0,
+                repost_after_minutes=0,
+            )
+
+            from unittest.mock import patch
+            with patch("afiliado_bot.services.publishing._send_telegram_text") as mock_alert:
+                service = PublishingService(config, storage, [MockPoster()])
+                service.publish(limit=4, dry_run=False)
+                self.assertTrue(mock_alert.called)
+
+    def test_publish_does_not_alert_in_dry_run(self):
+        import tempfile
+        from pathlib import Path
+        from afiliado_bot.config import AppConfig
+        from afiliado_bot.services.publishing import PublishingService
+        from afiliado_bot.storage import Storage
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "test.db")
+            storage.init_db()
+            config = AppConfig(telegram_bot_token="fake-token", telegram_chat_ids=["@canal"])
+
+            from unittest.mock import patch
+            with patch("afiliado_bot.services.publishing._send_telegram_text") as mock_alert:
+                service = PublishingService(config, storage, [])
+                service.publish(limit=4, dry_run=True)
+                mock_alert.assert_not_called()
+
+
+class ClickMetricsTests(unittest.TestCase):
+    def test_stats_by_source_counts_click_metadata(self):
+        import tempfile
+        from pathlib import Path
+        from afiliado_bot.storage import Storage
+        from afiliado_bot.models import Product
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "test.db")
+            storage.init_db()
+            product = Product(
+                source="mercadolivre",
+                external_id="MLB1",
+                title="Produto",
+                price=99,
+                currency="BRL",
+                permalink="https://example.com",
+                affiliate_url="https://example.com",
+                category="fone bluetooth",
+            )
+            pid = storage.upsert_product(product)
+            storage.record_event(pid, "click", channel="redirect", metadata={"source": "mercadolivre", "category": "fone bluetooth"})
+            storage.record_event(pid, "click", channel="redirect", metadata={"source": "mercadolivre", "category": "fone bluetooth"})
+
+            by_source = storage.stats_by_source()
+            self.assertEqual(len(by_source), 1)
+            self.assertEqual(by_source[0]["source"], "mercadolivre")
+            self.assertEqual(by_source[0]["clicks"], 2)
+
+            by_cat = storage.stats_by_category()
+            self.assertEqual(by_cat[0]["category"], "fone bluetooth")
+            self.assertEqual(by_cat[0]["clicks"], 2)
+
+
+class StoreCommandsTests(unittest.TestCase):
+    def test_display_category_from_new_module(self):
+        from afiliado_bot.commands.store import display_category_for_product
+        from afiliado_bot.models import Product
+
+        product = Product(
+            source="mercadolivre",
+            external_id="MLB1",
+            title="Notebook Dell",
+            price=3000,
+            currency="BRL",
+            permalink="https://example.com",
+            affiliate_url="https://example.com",
+            category="notebook",
+        )
+        dept, label = display_category_for_product(product)
+        self.assertEqual(dept, "Tecnologia")
+
+    def test_generate_stats_js_creates_file(self):
+        import tempfile
+        from pathlib import Path
+        from afiliado_bot.storage import Storage
+        from afiliado_bot.commands.store import generate_stats_js
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "test.db")
+            storage.init_db()
+            out = Path(tmp) / "stats.js"
+            generate_stats_js(storage, out)
+            content = out.read_text(encoding="utf-8")
+            self.assertTrue(content.startswith("window.LUMINA_STATS = "))
+            data = json.loads(content.removeprefix("window.LUMINA_STATS = ").removesuffix(";\n"))
+            self.assertIn("products", data)
+            self.assertIn("clicks_by_source", data)
 
 
 if __name__ == "__main__":

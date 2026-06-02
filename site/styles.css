@@ -674,3 +674,79 @@ h1,h2,h3,h4 { overflow-wrap: anywhere; line-height: 1.15; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TELEGRAM CTA BANNER
+   ═══════════════════════════════════════════════════════════ */
+
+.tg-banner {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: linear-gradient(90deg, #1a3a5c 0%, #0e2a42 100%);
+  border-bottom: 1px solid rgba(34,158,217,.3);
+}
+
+.tg-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: .6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.tg-icon {
+  color: #229ed9;
+  flex-shrink: 0;
+}
+
+.tg-banner-text {
+  flex: 1;
+  font-size: .875rem;
+  color: #e2f0fa;
+}
+
+.tg-banner-sub {
+  color: #8bbdd4;
+  font-weight: 400;
+}
+
+.tg-banner-btn {
+  background: #229ed9;
+  color: #fff;
+  text-decoration: none;
+  font-size: .8rem;
+  font-weight: 700;
+  padding: .45rem .9rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background .15s, transform .1s;
+  flex-shrink: 0;
+}
+.tg-banner-btn:hover {
+  background: #1a7fb0;
+  transform: translateY(-1px);
+}
+
+.tg-banner-close {
+  background: none;
+  border: none;
+  color: #8bbdd4;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: .2rem .4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.tg-banner-close:hover { color: #e2f0fa; }
+
+/* Body offset when banner visible */
+body.has-tg-banner .topbar { top: 0; }
+
+@media (max-width: 480px) {
+  .tg-banner-sub { display: none; }
+  .tg-banner-text strong { font-size: .8rem; }
+  .tg-banner-btn { font-size: .75rem; padding: .4rem .7rem; }
+}

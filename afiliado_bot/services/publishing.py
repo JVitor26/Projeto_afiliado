@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
+import logging
 from html import escape
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 from afiliado_bot.posters.base import Poster
 from afiliado_bot.storage import Storage, are_titles_similar
+
+log = logging.getLogger(__name__)
 
 
 class PublishingService:
@@ -41,7 +48,7 @@ class PublishingService:
             # Evita publicar variantes similares em sequência (ex: mesmo produto, sabores diferentes)
             all_recent = recent_titles + published_this_run
             if all_recent and any(are_titles_similar(product.title, t) for t in all_recent):
-                print(f"  [skip-dedup] similar ja publicado: {product.title[:60]}")
+                log.debug("skip-dedup: similar ja publicado: %s", product.title[:60])
                 continue
 
             message = build_offer_message(product, self.config.public_base_url)
@@ -49,7 +56,10 @@ class PublishingService:
                 results = poster.post(message, product)
                 for result in results:
                     status = "sent" if result.success and not dry_run else "preview" if dry_run else "failed"
-                    print(f"  [{result.channel}] {status}: {result.response[:120] if not result.success else 'ok'}")
+                    if result.success:
+                        log.info("[%s] %s", result.channel, status)
+                    else:
+                        log.warning("[%s] %s: %s", result.channel, status, result.response[:120])
                     if product.id is not None:
                         self.storage.add_post(
                             product.id,
@@ -64,7 +74,42 @@ class PublishingService:
             if not dry_run:
                 published_this_run.append(product.title)
 
+        if sent == 0 and not dry_run:
+            self._alert_zero_published(len(products))
+
         return sent
+
+    def _alert_zero_published(self, candidates: int) -> None:
+        """Envia alerta Telegram quando nenhum produto foi publicado."""
+        token = self.config.telegram_bot_token
+        chat_ids = self.config.telegram_chat_ids
+        if not token or not chat_ids:
+            log.warning("Nenhum produto publicado e Telegram nao configurado para alertar.")
+            return
+
+        text = (
+            "⚠️ <b>Alerta PromoLink</b>\n\n"
+            f"Nenhum produto publicado nesta execução.\n"
+            f"Candidatos encontrados no banco: {candidates}\n\n"
+            "Verifique o banco de dados, os filtros de score e as APIs dos providers."
+        )
+        for chat_id in chat_ids:
+            _send_telegram_text(token, chat_id, text)
+
+
+def _send_telegram_text(token: str, chat_id: str, text: str) -> None:
+    data = urlencode({
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+    }).encode("utf-8")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    req = Request(url, data=data)
+    try:
+        with urlopen(req, timeout=10):
+            pass
+    except (URLError, OSError) as exc:
+        log.warning("Falha ao enviar alerta Telegram: %s", exc)
 
 
 def build_offer_message(product: Product, public_base_url: str = "") -> str:

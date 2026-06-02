@@ -1,12 +1,43 @@
 from __future__ import annotations
 
+import dataclasses
 import json
+import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import PostResult, Product
+
+
+_TECH_TERMS = re.compile(
+    r"""
+    smart\s*tv | televisor | tela\s+\d | monitor\s+\d | monitor\s+gamer |
+    notebook | laptop | computador | desktop | pc\s+gamer | workstation |
+    teclado | mousepad | webcam | placa\s+de\s+v[ií]deo | gpu |
+    processador | mem[oó]ria\s+ram | \bram\b | \bssd\b | \bnvme\b |
+    hd\s+externo | pendrive | cart[aã]o\s+de\s+mem[oó]ria |
+    gabinete | cooler | water\s+cooler |
+    celular | smartphone | iphone | samsung\s+galaxy | \bxiaomi\b | \bmotorola\b |
+    \btablet\b | \bipad\b |
+    headset | headphone | airpods | fone\s+(de\s+ouvido|bluetooth|sem\s+fio) |
+    caixa\s+de\s+som | soundbar | home\s+theater | subwoofer |
+    playstation | \bps5\b | \bps4\b | \bxbox\b | nintendo\s+switch | controle\s+gamer | console |
+    \bdrone\b | c[aâ]mera\s+(digital|dslr|mirrorless|de\s+a[çc][aã]o) |
+    roteador | \bmodem\b | wi[-\s]fi\s+\d |
+    smartwatch | rel[oó]gio\s+smart | pulseira\s+fitness |
+    projetor | impressora | scanner | no[-\s]break |
+    chromecast | apple\s+tv | fire\s+stick | fire\s+tv |
+    power\s+bank | carregador\s+(wireless|r[aá]pido|sem\s+fio) |
+    \bhdmi\b | \busb[-\s]c\b | \bthunderbolt\b |
+    placa[-\s]m[aã]e | fonte\s+pc | fonte\s+atx |
+    mouse\s+gamer | \bmouse\b | teclado\s+mec[aâ]nico |
+    cadeira\s+gamer | mesa\s+gamer |
+    tv\s+\d{2} | \btv\s+(4k|8k|oled|qled|led)\b | \b4k\b.*tv | tv\b.*\b4k
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 MAX_PHOTO_CAPTION_LENGTH = 1024
@@ -184,3 +215,35 @@ def _fallback_result(photo_result: PostResult, message_result: PostResult) -> Po
 
 def _compact_response(*parts: str) -> str:
     return " | ".join(p for p in parts if p)[:500]
+
+
+def _is_tech_product(product: Product) -> bool:
+    text = f"{product.title} {product.category}".lower()
+    return bool(_TECH_TERMS.search(text))
+
+
+class TechTelegramPoster:
+    """Envia apenas para TELEGRAM_TECH_CHAT_IDS e somente produtos de tecnologia.
+
+    Usa TELEGRAM_TECH_BOT_TOKEN se configurado; caso contrário usa o bot principal.
+    """
+
+    channel = "telegram_tech"
+
+    def __init__(self, config: AppConfig, timeout: int = 20) -> None:
+        token = config.telegram_tech_bot_token or config.telegram_bot_token
+        tech_config = dataclasses.replace(
+            config,
+            telegram_bot_token=token,
+            telegram_chat_ids=config.telegram_tech_chat_ids,
+        )
+        self._inner = TelegramPoster(tech_config, timeout)
+
+    @property
+    def enabled(self) -> bool:
+        return self._inner.enabled
+
+    def post(self, message: str, product: Product) -> list[PostResult]:
+        if not _is_tech_product(product):
+            return []
+        return self._inner.post(message, product)

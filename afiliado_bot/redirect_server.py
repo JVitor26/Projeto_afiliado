@@ -45,7 +45,17 @@ def _handler_factory(storage: Storage) -> type[BaseHTTPRequestHandler]:
                 self.wfile.write(b"product not found")
                 return
 
-            storage.record_event(product_id, "click", channel="redirect")
+            storage.record_event(
+                product_id,
+                "click",
+                channel="redirect",
+                metadata={
+                    "source": product.source,
+                    "category": product.category,
+                    "referrer": self.headers.get("Referer", ""),
+                    "user_agent": self.headers.get("User-Agent", "")[:120],
+                },
+            )
             self.send_response(302)
             self.send_header("Location", product.affiliate_url)
             self.end_headers()

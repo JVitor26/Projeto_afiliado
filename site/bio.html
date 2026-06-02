@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PromoLink Brasil — Siga nossas promoções</title>
+  <meta name="description" content="As melhores ofertas do Brasil em tempo real. Siga nosso canal no Telegram e não perca nenhuma promo!">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PromoLink Brasil — Ofertas em tempo real 🔥">
+  <meta property="og:description" content="Receba as melhores ofertas do Mercado Livre, Amazon, AliExpress e Shopee direto no seu Telegram. Grátis!">
+  <meta property="og:image" content="https://jvitor26.github.io/Projeto_afiliado/og-image.svg">
+  <meta property="og:url" content="https://jvitor26.github.io/Projeto_afiliado/bio.html">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0b0f1a;
+      --card: #141927;
+      --border: #1e2840;
+      --accent: #f97316;
+      --accent2: #fb923c;
+      --tg: #229ed9;
+      --tg-dark: #1a7fb0;
+      --wpp: #25d366;
+      --text: #f0f4ff;
+      --muted: #8b9cc8;
+      --radius: 16px;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+      background-image:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(249,115,22,.12) 0%, transparent 70%);
+    }
+
+    /* ── Avatar / logo ── */
+    .avatar {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #dc2626);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 0 4px rgba(249,115,22,.2);
+    }
+
+    /* ── Name / tagline ── */
+    .bio-name {
+      font-size: 1.4rem; font-weight: 800;
+      letter-spacing: -.02em;
+      margin-bottom: .25rem;
+    }
+    .bio-name span { color: var(--accent); }
+
+    .bio-tag {
+      font-size: .875rem; color: var(--muted);
+      margin-bottom: 2rem; text-align: center;
+      max-width: 300px; line-height: 1.5;
+    }
+
+    /* ── Highlight badge ── */
+    .highlight-badge {
+      background: rgba(249,115,22,.12);
+      border: 1px solid rgba(249,115,22,.3);
+      border-radius: 100px;
+      padding: .3rem .85rem;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--accent2);
+      letter-spacing: .03em;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── Link buttons ── */
+    .links { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: .75rem; }
+
+    .link-btn {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, filter .15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .link-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+    .link-btn:active { transform: translateY(0); }
+
+    .link-btn .btn-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.15);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.25rem;
+    }
+    .link-btn .btn-text { flex: 1; }
+    .link-btn .btn-text small { display: block; font-size: .72rem; font-weight: 400; opacity: .8; margin-top: .1rem; }
+    .link-btn .btn-arrow {
+      font-size: 1.1rem;
+      opacity: .6;
+    }
+
+    /* Primary — Telegram */
+    .btn-telegram {
+      background: linear-gradient(135deg, var(--tg), var(--tg-dark));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(34,158,217,.35);
+    }
+    .btn-telegram .btn-icon { background: rgba(255,255,255,.2); }
+
+    /* WhatsApp */
+    .btn-whatsapp {
+      background: linear-gradient(135deg, #25d366, #128C7E);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(37,211,102,.3);
+    }
+
+    /* Site */
+    .btn-site {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ── "Como funciona" mini-section ── */
+    .how-title {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 2rem 0 .75rem;
+      align-self: flex-start;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .steps {
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; gap: .5rem;
+    }
+    .step {
+      display: flex; align-items: center; gap: .75rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: .75rem 1rem;
+      font-size: .875rem;
+    }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(249,115,22,.15);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: .8rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Footer ── */
+    .bio-footer {
+      margin-top: 2.5rem;
+      font-size: .72rem;
+      color: var(--muted);
+      text-align: center;
+      opacity: .7;
+    }
+    .bio-footer a { color: var(--muted); text-decoration: underline; }
+
+    /* Pulse animation for primary button */
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(34,158,217,.5); }
+      70% { box-shadow: 0 0 0 12px rgba(34,158,217,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,158,217,0); }
+    }
+    .btn-telegram { animation: pulse-ring 2.5s cubic-bezier(.455,.03,.515,.955) infinite; }
+    .btn-telegram:hover { animation: none; }
+  </style>
+</head>
+<body>
+
+  <div class="avatar">🔥</div>
+  <h1 class="bio-name">Promo<span>Link</span> Brasil</h1>
+  <p class="bio-tag">Ofertas do ML, Amazon, AliExpress e Shopee — atualizadas a cada 8 minutos, 100% grátis.</p>
+
+  <div class="highlight-badge">⚡ +100 ofertas novas por dia</div>
+
+  <div class="links">
+
+    <!-- 1. Telegram — destaque máximo -->
+    <a class="link-btn btn-telegram" href="https://t.me/PromoLinkBrasil99" target="_blank" rel="noopener noreferrer" id="btnTelegram">
+      <div class="btn-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+        </svg>
+      </div>
+      <div class="btn-text">
+        Entrar no Canal do Telegram
+        <small>Receba cada oferta na hora — grátis</small>
+      </div>
+      <span class="btn-arrow">→</span>
+    </a>
+
+    <!-- 2. WhatsApp -->
+    <a class="link-btn btn-whatsapp" href="https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w" target="_blank" rel="noopener noreferrer">
+      <div class="btn-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      </div>
+      <div class="btn-text">
+        Canal do WhatsApp
+        <small>Ofertas diretamente no WhatsApp</small>
+      </div>
+      <span class="btn-arrow">→</span>
+    </a>
+
+    <!-- 3. Site -->
+    <a class="link-btn btn-site" href="index.html">
+      <div class="btn-icon" style="font-size:1.3rem">🛒</div>
+      <div class="btn-text">
+        Ver todas as ofertas
+        <small>Catálogo completo com filtros</small>
+      </div>
+      <span class="btn-arrow">→</span>
+    </a>
+
+  </div>
+
+  <p class="how-title">Como funciona</p>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <span>Nosso bot busca ofertas em 4 marketplaces a cada 8 min</span>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <span>Filtramos apenas produtos com desconto real e boas avaliações</span>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <span>Você recebe no Telegram antes de esgotar 🎯</span>
+    </div>
+  </div>
+
+  <p class="bio-footer">
+    Links de afiliado — <a href="index.html">PromoLink Brasil</a><br>
+    Preços e disponibilidade podem variar. Confirme antes de comprar.
+  </p>
+
+  <script>
+    // Pega o link do canal Telegram do products.js se disponível
+    // (permite centralizar a config num só lugar)
+    if (typeof window.LUMINA_PRODUCTS !== 'undefined') {
+      // no-op: link está hardcoded acima, ajuste conforme necessário
+    }
+  </script>
+</body>
+</html>

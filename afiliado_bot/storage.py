@@ -346,6 +346,42 @@ class Storage:
             ).fetchall()
         return {row["category"]: float(row["points"] or 0) for row in rows}
 
+    def stats_by_source(self) -> list[dict[str, Any]]:
+        """Cliques agrupados por source do produto."""
+        with self.session() as conn:
+            rows = conn.execute(
+                """
+                select
+                    json_extract(e.metadata_json, '$.source') as source,
+                    count(*) as clicks
+                from events e
+                where e.event_type = 'click'
+                  and json_extract(e.metadata_json, '$.source') is not null
+                group by source
+                order by clicks desc
+                """
+            ).fetchall()
+        return [{"source": row["source"], "clicks": int(row["clicks"])} for row in rows]
+
+    def stats_by_category(self) -> list[dict[str, Any]]:
+        """Cliques agrupados por categoria do produto."""
+        with self.session() as conn:
+            rows = conn.execute(
+                """
+                select
+                    json_extract(e.metadata_json, '$.category') as category,
+                    count(*) as clicks
+                from events e
+                where e.event_type = 'click'
+                  and json_extract(e.metadata_json, '$.category') is not null
+                  and json_extract(e.metadata_json, '$.category') != ''
+                group by category
+                order by clicks desc
+                limit 20
+                """
+            ).fetchall()
+        return [{"category": row["category"], "clicks": int(row["clicks"])} for row in rows]
+
     def stats(self) -> dict[str, Any]:
         with self.session() as conn:
             product_count = conn.execute("select count(*) as n from products").fetchone()["n"]

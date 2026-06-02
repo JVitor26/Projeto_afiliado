@@ -4,6 +4,7 @@ import argparse
 import csv
 import dataclasses
 import json
+import logging
 import os
 import sys
 import time
@@ -12,7 +13,16 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from . import configure_logging
 from .clients import AliExpressClient, AmazonClient, ManualProductClient, MercadoLivreClient, ShopeeClient
+from .commands.store import (
+    display_category_for_product,
+    export_store_products,
+    generate_stats_js,
+    import_site_products,
+)
+from .commands import mercadolivre as _ml_cmd
+from .forwarder import TelegramToWhatsAppForwarder
 from .clients.manual import (
     enrich_product_from_url,
     manual_csv_headers,
@@ -21,7 +31,8 @@ from .clients.manual import (
 )
 from .config import AppConfig, BASE_DIR, load_config
 from .models import Product
-from .posters import DryRunPoster, TelegramPoster, WebhookPoster, WhatsAppPoster
+from .posters import DryRunPoster, TelegramPoster, TechTelegramPoster, WebhookPoster, WhatsAppPoster
+from .posters.whatsapp_group import WhatsAppGroupPoster
 from .redirect_server import serve_redirects
 from .scheduler import _sleep_until_next_cycle, run_forever
 from .scoring import ProductRanker
@@ -31,6 +42,7 @@ from .storage import Storage
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_logging()
     parser = argparse.ArgumentParser(prog="afiliado-bot")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -194,6 +206,25 @@ def main(argv: list[str] | None = None) -> int:
 
     subparsers.add_parser("stats", help="mostra resumo do banco")
 
+    gen_stats_parser = subparsers.add_parser("generate-stats", help="gera site/stats.js com métricas do banco")
+    gen_stats_parser.add_argument("--out", default=str(BASE_DIR / "site" / "stats.js"))
+
+    forward_parser = subparsers.add_parser(
+        "forward",
+        help="monitora o canal Telegram e encaminha posts para grupos WhatsApp",
+    )
+    forward_parser.add_argument(
+        "--interval",
+        type=int,
+        default=10,
+        help="intervalo em segundos entre cada polling do Telegram (padrao: 10)",
+    )
+
+    subparsers.add_parser(
+        "list-whatsapp-groups",
+        help="lista os grupos WhatsApp disponíveis para descobrir o ID do grupo",
+    )
+
     args = parser.parse_args(argv)
     config = load_config()
     storage = Storage(config.database_path)
@@ -210,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Para usar /users/me, gere um access token OAuth e coloque em MERCADOLIVRE_ACCESS_TOKEN.")
             return 2
         try:
-            profile = fetch_mercadolivre_me(token)
+            profile = _ml_cmd.fetch_me(token)
         except RuntimeError as exc:
             print(f"Erro Mercado Livre: {exc}")
             return 2
@@ -249,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
         if not redirect_uri:
             print("MERCADOLIVRE_REDIRECT_URI nao configurado no .env.")
             return 2
-        print(build_mercadolivre_auth_url(config.mercadolivre_client_id, redirect_uri, state=args.state or ""))
+        print(_ml_cmd.build_auth_url(config.mercadolivre_client_id, redirect_uri, state=args.state or ""))
         return 0
 
     if args.command == "mercadolivre-token":
@@ -264,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             print("MERCADOLIVRE_REDIRECT_URI nao configurado no .env.")
             return 2
         try:
-            token_payload = exchange_mercadolivre_code(
+            token_payload = _ml_cmd.exchange_code(
                 config.mercadolivre_client_id,
                 config.mercadolivre_client_secret,
                 args.code,
@@ -293,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
             print("MERCADOLIVRE_REFRESH_TOKEN nao configurado.")
             return 2
         try:
-            token_payload = refresh_mercadolivre_token(
+            token_payload = _ml_cmd.refresh_token(
                 config.mercadolivre_client_id,
                 config.mercadolivre_client_secret,
                 config.mercadolivre_refresh_token,
@@ -306,9 +337,9 @@ def main(argv: list[str] | None = None) -> int:
             if not github_env:
                 print("GITHUB_ENV nao esta disponivel.")
                 return 2
-            _append_github_env(github_env, "MERCADOLIVRE_ACCESS_TOKEN", str(token_payload.get("access_token") or ""))
+            _ml_cmd.append_github_env(github_env, "MERCADOLIVRE_ACCESS_TOKEN", str(token_payload.get("access_token") or ""))
             if token_payload.get("refresh_token"):
-                _append_github_env(github_env, "MERCADOLIVRE_REFRESH_TOKEN", str(token_payload["refresh_token"]))
+                _ml_cmd.append_github_env(github_env, "MERCADOLIVRE_REFRESH_TOKEN", str(token_payload["refresh_token"]))
             print("Tokens Mercado Livre renovados no GITHUB_ENV.")
             return 0
         print("Cole estes valores no seu .env e nos GitHub Actions secrets:")
@@ -504,7 +535,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "stats":
-        print(json.dumps(storage.stats(), ensure_ascii=False, indent=2))
+        data = storage.stats()
+        data["clicks_by_source"] = storage.stats_by_source()
+        data["clicks_by_category"] = storage.stats_by_category()
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "generate-stats":
+        out_path = Path(args.out)
+        if not out_path.is_absolute():
+            out_path = BASE_DIR / out_path
+        generate_stats_js(storage, out_path)
+        print(f"Stats gerado: {out_path}")
         return 0
 
     if args.command == "export-site":
@@ -513,6 +555,33 @@ def main(argv: list[str] | None = None) -> int:
             out_path = BASE_DIR / out_path
         export_store_products(storage, out_path, limit=args.limit, keep_existing_if_empty=args.keep_existing_if_empty)
         print(f"Produtos exportados para: {out_path}")
+        return 0
+
+    if args.command == "forward":
+        forwarder = TelegramToWhatsAppForwarder(config, poll_interval=args.interval)
+        try:
+            forwarder.run_forever()
+        except RuntimeError as exc:
+            print(f"[erro] {exc}")
+            return 2
+        return 0
+
+    if args.command == "list-whatsapp-groups":
+        poster = WhatsAppGroupPoster(config)
+        if not config.whatsapp_group_api_url:
+            print("WHATSAPP_GROUP_API_URL nao configurado no .env")
+            print("Configure a Evolution API ou Green API primeiro.")
+            return 2
+        groups = poster.list_groups()
+        if not groups:
+            print("Nenhum grupo encontrado ou erro na API.")
+            return 2
+        print(f"{'ID':<35} {'Nome'}")
+        print("-" * 60)
+        for group in groups:
+            print(f"{str(group.get('id', '')):<35} {group.get('name', '')}")
+        print(f"\nTotal: {len(groups)} grupos")
+        print("\nCopie o ID do seu grupo e coloque em WHATSAPP_GROUP_IDS no .env")
         return 0
 
     mining = _build_mining(config, storage)
@@ -649,112 +718,13 @@ def create_manual_template(out_path: Path, *, force: bool = False) -> bool:
     return True
 
 
+# Alias para retrocompatibilidade com testes que importam diretamente de cli
 def build_mercadolivre_auth_url(client_id: str, redirect_uri: str, *, state: str = "") -> str:
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-    }
-    if state:
-        params["state"] = state
-    return "https://auth.mercadolivre.com.br/authorization?" + urlencode(params)
-
-
-def exchange_mercadolivre_code(
-    client_id: str,
-    client_secret: str,
-    code: str,
-    redirect_uri: str,
-    *,
-    code_verifier: str = "",
-) -> dict[str, object]:
-    form = {
-        "grant_type": "authorization_code",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "code": code,
-        "redirect_uri": redirect_uri,
-    }
-    if code_verifier:
-        form["code_verifier"] = code_verifier
-    request = Request(
-        "https://api.mercadolibre.com/oauth/token",
-        data=urlencode(form).encode("utf-8"),
-        headers={
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "User-Agent": "afiliado-bot/0.1",
-        },
-        method="POST",
-    )
-    try:
-        with urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {exc.code}: {body[:300]}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"erro de conexao: {exc.reason}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("resposta invalida da API")
-    return payload
+    return _ml_cmd.build_auth_url(client_id, redirect_uri, state=state)
 
 
 def refresh_mercadolivre_token(client_id: str, client_secret: str, refresh_token: str) -> dict[str, object]:
-    form = {
-        "grant_type": "refresh_token",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "refresh_token": refresh_token,
-    }
-    request = Request(
-        "https://api.mercadolibre.com/oauth/token",
-        data=urlencode(form).encode("utf-8"),
-        headers={
-            "accept": "application/json",
-            "content-type": "application/x-www-form-urlencoded",
-            "User-Agent": "afiliado-bot/0.1",
-        },
-        method="POST",
-    )
-    try:
-        with urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {exc.code}: {body[:300]}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"erro de conexao: {exc.reason}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("resposta invalida da API")
-    return payload
-
-
-def _append_github_env(github_env: str, key: str, value: str) -> None:
-    with Path(github_env).open("a", encoding="utf-8") as file:
-        file.write(f"{key}<<EOF\n{value}\nEOF\n")
-
-
-def fetch_mercadolivre_me(token: str) -> dict[str, object]:
-    request = Request(
-        "https://api.mercadolibre.com/users/me",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-            "User-Agent": "afiliado-bot/0.1",
-        },
-    )
-    try:
-        with urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {exc.code}: {body[:300]}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"erro de conexao: {exc.reason}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("resposta invalida da API")
-    return payload
+    return _ml_cmd.refresh_token(client_id, client_secret, refresh_token)
 
 
 def import_manual_products(
@@ -836,94 +806,6 @@ def import_manual_products(
 
     report["review_out"] = str(review_out)
     return report
-
-
-def import_site_products(storage: Storage, products_path: Path, *, limit: int, only_if_empty: bool = False) -> int:
-    if only_if_empty and storage.stats()["products"] > 0:
-        return 0
-    if not products_path.exists():
-        return 0
-
-    payload = _load_site_products(products_path)
-    imported = 0
-    for record in payload[: max(limit, 0)]:
-        if not isinstance(record, dict):
-            continue
-        title = str(record.get("title") or "").strip()
-        source = str(record.get("source") or "manual").strip().lower() or "manual"
-        external_id = str(record.get("externalId") or record.get("external_id") or "").strip()
-        affiliate_url = str(record.get("affiliateUrl") or record.get("affiliate_url") or "").strip()
-        image_url = str(record.get("imageUrl") or record.get("image_url") or "").strip()
-        price = _site_float(record.get("price"))
-        if not title or not external_id or not affiliate_url:
-            continue
-
-        metadata = {
-            key: record.get(key)
-            for key in (
-                "categoryLabel",
-                "department",
-                "commissionRate",
-                "offerType",
-                "periodEndTime",
-                "sellerCompletedTransactions",
-                "sellerPowerStatus",
-                "sellerLevel",
-                "officialStoreId",
-                "officialStoreName",
-            )
-            if record.get(key) is not None
-        }
-        product = Product(
-            source=source,
-            external_id=external_id,
-            title=title,
-            price=price,
-            original_price=_site_optional_float(record.get("originalPrice") or record.get("original_price")),
-            currency=str(record.get("currency") or "BRL"),
-            permalink=str(record.get("permalink") or affiliate_url),
-            affiliate_url=affiliate_url,
-            image_url=image_url,
-            category=str(record.get("category") or record.get("categoryLabel") or "site"),
-            score=_site_float(record.get("score")),
-            rating=_site_optional_float(record.get("rating")),
-            sold_quantity=_site_optional_int(record.get("soldQuantity") or record.get("sold_quantity")),
-            free_shipping=bool(record.get("freeShipping") or record.get("free_shipping")),
-            metadata={"raw_source": "site_products", **metadata},
-        )
-        storage.upsert_product(product)
-        imported += 1
-    return imported
-
-
-def _load_site_products(products_path: Path) -> list[object]:
-    content = products_path.read_text(encoding="utf-8-sig").strip()
-    prefix = "window.LUMINA_PRODUCTS = "
-    if content.startswith(prefix):
-        content = content[len(prefix) :]
-    if content.endswith(";"):
-        content = content[:-1]
-    payload = json.loads(content)
-    return payload if isinstance(payload, list) else []
-
-
-def _site_float(value: object) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _site_optional_float(value: object) -> float | None:
-    parsed = _site_float(value)
-    return parsed if parsed > 0 else None
-
-
-def _site_optional_int(value: object) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def run_mercadolivre_auto(
@@ -1103,6 +985,10 @@ def _build_posters(config: AppConfig, *, force_dry_run: bool) -> list[object]:
     if telegram.enabled:
         posters.append(telegram)
 
+    tech_telegram = TechTelegramPoster(config)
+    if tech_telegram.enabled:
+        posters.append(tech_telegram)
+
     whatsapp = WhatsAppPoster(config)
     if whatsapp.enabled:
         posters.append(whatsapp)
@@ -1114,157 +1000,6 @@ def _build_posters(config: AppConfig, *, force_dry_run: bool) -> list[object]:
     if not posters:
         posters.append(DryRunPoster())
     return posters
-
-
-def export_store_products(storage: Storage, out_path: Path, *, limit: int, keep_existing_if_empty: bool = False) -> None:
-    products = storage.list_products_for_store(limit=limit, require_image=True)
-    payload = []
-    for product in products:
-        department, category_label = display_category_for_product(product)
-        payload.append(
-            {
-                "id": product.id,
-                "source": product.source,
-                "externalId": product.external_id,
-                "title": product.title,
-                "price": product.price,
-                "originalPrice": product.original_price,
-                "currency": product.currency,
-                "affiliateUrl": product.affiliate_url,
-                "imageUrl": product.image_url,
-                "category": product.category,
-                "categoryLabel": category_label,
-                "department": department,
-                "score": product.score,
-                "rating": product.rating,
-                "soldQuantity": product.sold_quantity,
-                "freeShipping": product.free_shipping,
-                "discountPercent": product.discount_percent,
-                "commissionRate": product.metadata.get("commission_rate"),
-                "offerType": product.metadata.get("offer_type"),
-                "periodEndTime": product.metadata.get("period_end_time"),
-                "sellerCompletedTransactions": product.metadata.get("seller_completed_transactions"),
-                "sellerPowerStatus": product.metadata.get("seller_power_seller_status"),
-                "sellerLevel": product.metadata.get("seller_level_id"),
-                "officialStoreId": product.metadata.get("official_store_id"),
-                "officialStoreName": product.metadata.get("official_store_name"),
-            }
-        )
-
-    if keep_existing_if_empty and not payload and out_path.exists():
-        return
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        "window.LUMINA_PRODUCTS = "
-        + json.dumps(payload, ensure_ascii=False, indent=2)
-        + ";\n",
-        encoding="utf-8",
-    )
-
-
-def display_category_for_product(product: object) -> tuple[str, str]:
-    title = str(getattr(product, "title", "") or "")
-    raw_category = str(getattr(product, "category", "") or "")
-    metadata = getattr(product, "metadata", {}) or {}
-    keyword = str(metadata.get("keyword") or metadata.get("keywords") or "").strip()
-    is_marketplace_code = raw_category.upper().startswith(("MLB", "MLA", "MLM", "MCO", "MLC", "MLU"))
-    readable = raw_category or keyword or "geral"
-    if is_marketplace_code and keyword:
-        readable = keyword
-
-    groups = [
-        (
-            "Tecnologia",
-            (
-                "celular",
-                "smartphone",
-                "iphone",
-                "notebook",
-                "monitor",
-                "ssd",
-                "fone",
-                "headset",
-                "bluetooth",
-                "smartwatch",
-                "tablet",
-                "teclado",
-                "mouse",
-                "controle",
-                "xbox",
-                "playstation",
-                "gamer",
-                "caixa de som",
-            ),
-        ),
-        (
-            "Casa e cozinha",
-            (
-                "casa",
-                "cozinha",
-                "air fryer",
-                "panela",
-                "liquidificador",
-                "cafeteira",
-                "utensilio",
-                "utensílio",
-                "jogo de panelas",
-                "organizador",
-                "luminaria",
-                "luminária",
-            ),
-        ),
-        (
-            "Eletrodomesticos",
-            (
-                "geladeira",
-                "micro-ondas",
-                "microondas",
-                "maquina de lavar",
-                "máquina de lavar",
-                "aspirador",
-                "ventilador",
-                "climatizador",
-                "fritadeira",
-                "britania",
-                "britânia",
-            ),
-        ),
-        ("Cama, mesa e banho", ("cama", "mesa", "banho", "toalha", "jogo de cama", "lencol", "lençol")),
-        ("Ferramentas", ("furadeira", "parafusadeira", "ferramenta", "chave", "broca")),
-        ("Moda", ("tenis", "tênis", "mochila", "camiseta", "calca", "calça", "relogio", "relógio")),
-        ("Beleza", ("beleza", "barbeador", "escova secadora", "secador", "perfume", "maquiagem")),
-        ("Pets", ("pet", "cachorro", "gato", "racao", "ração")),
-        ("Brinquedos", ("brinquedo", "lego", "boneca", "carrinho")),
-        ("Automotivo", ("carro", "moto", "automotivo", "pneu", "bateria")),
-    ]
-    department = "Outras ofertas"
-    category_text = readable.lower()
-    for label, terms in groups:
-        if any(term in category_text for term in terms):
-            department = label
-            break
-
-    haystack = f"{title} {readable} {raw_category}".lower()
-    for label, terms in groups:
-        if department != "Outras ofertas":
-            break
-        if any(term in haystack for term in terms):
-            department = label
-            break
-
-    return department, _clean_category_label(readable, title)
-
-
-def _clean_category_label(value: str, title: str) -> str:
-    text = value.strip()
-    if not text or text.upper().startswith(("MLB", "MLA", "MLM", "MCO", "MLC", "MLU")):
-        text = title
-    text = text.replace("_", " ").replace("-", " ")
-    text = " ".join(text.split())
-    if not text:
-        return "Geral"
-    return text[:1].upper() + text[1:]
 
 
 def _get_hint_for_error(reason: str) -> str:

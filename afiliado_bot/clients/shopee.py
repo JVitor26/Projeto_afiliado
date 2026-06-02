@@ -12,7 +12,7 @@ from afiliado_bot.affiliates import apply_affiliate_template
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
-from .base import ProviderError
+from .base import ProviderError, retry_http
 
 
 class ShopeeClient:
@@ -133,8 +133,10 @@ class ShopeeClient:
                 headers["Authorization"] = self.config.shopee_authorization_header
             request = Request(url, headers=headers)
             try:
-                with urlopen(request, timeout=self.timeout) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
+                def _do_shopee() -> object:
+                    with urlopen(request, timeout=self.timeout) as response:
+                        return json.loads(response.read().decode("utf-8"))
+                payload = retry_http(_do_shopee)
             except HTTPError as exc:
                 body = exc.read().decode("utf-8", errors="replace")
                 raise ProviderError(f"Shopee feed HTTP {exc.code}: {body[:300]}") from exc

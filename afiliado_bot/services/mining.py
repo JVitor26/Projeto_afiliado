@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 from dataclasses import dataclass, field
 
 from afiliado_bot.clients.base import ProductProvider, ProviderError
 from afiliado_bot.scoring import ProductRanker
 from afiliado_bot.storage import Storage
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,12 +43,16 @@ class MiningService:
                         report.skipped += partial_report.skipped
                         report.errors.extend(partial_report.errors)
                     except Exception as exc:
-                        report.errors.append(f"Erro ao processar keyword '{keyword}': {exc}")
+                        msg = f"Erro ao processar keyword '{keyword}': {exc}"
+                        report.errors.append(msg)
+                        log.warning(msg)
             except concurrent.futures.TimeoutError:
                 for future, keyword in futures.items():
                     if not future.done():
                         future.cancel()
-                        report.errors.append(f"Timeout ao processar keyword '{keyword}'")
+                        msg = f"Timeout ao processar keyword '{keyword}'"
+                        report.errors.append(msg)
+                        log.warning(msg)
 
         return report
 
@@ -67,7 +74,9 @@ class MiningService:
                     report.skipped += partial_report.skipped
                     report.errors.extend(partial_report.errors)
                 except Exception as exc:
-                    report.errors.append(f"{provider_name}/{keyword}: {exc}")
+                    msg = f"{provider_name}/{keyword}: {exc}"
+                    report.errors.append(msg)
+                    log.warning(msg)
 
         return report
 
@@ -95,6 +104,8 @@ class MiningService:
                 product.id = self.storage.upsert_product(product)
                 report.imported += 1
             except Exception as exc:
-                report.errors.append(f"Erro ao salvar {product.title}: {exc}")
+                msg = f"Erro ao salvar {product.title}: {exc}"
+                report.errors.append(msg)
+                log.warning(msg)
 
         return report
