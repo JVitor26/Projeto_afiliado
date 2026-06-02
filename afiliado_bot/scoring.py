@@ -60,13 +60,19 @@ class ProductRanker:
 
     def score(self, product: Product) -> float:
         score = 25.0 if product.price <= 0 else 10.0
-        score += min(product.discount_percent * 1.8, 45.0)
+        score += min(product.discount_percent * 2.0, 50.0)
         commission_rate = _as_float(product.metadata.get("commission_rate"))
         if commission_rate:
             score += min(commission_rate * 100 * 2.5, 22.0)
 
+        # Bônus por ticket alto (produtos acima de R$300 geram mais comissão)
+        if product.price >= 1000:
+            score += 12
+        elif product.price >= 300:
+            score += 6
+
         if product.sold_quantity:
-            score += min(math.log10(product.sold_quantity + 1) * 10, 28.0)
+            score += min(math.log10(product.sold_quantity + 1) * 12, 32.0)
         seller_transactions = _as_int(product.metadata.get("seller_completed_transactions"))
         if seller_transactions:
             score += min(math.log10(seller_transactions + 1) * 8, 24.0)
@@ -75,9 +81,9 @@ class ProductRanker:
         if product.metadata.get("official_store_id"):
             score += 8
         if product.rating:
-            score += max(product.rating - 3.5, 0) * 8
+            score += max(product.rating - 3.5, 0) * 10
         if product.free_shipping:
-            score += 7
+            score += 8
 
         # Bonus: lojas confiáveis (Magazine Luiza, Casas Bahia, Dell, Acer, etc.)
         store_name = str(product.metadata.get("official_store_name") or "").lower().strip()

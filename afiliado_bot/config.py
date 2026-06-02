@@ -242,13 +242,13 @@ def load_config() -> AppConfig:
             DEFAULT_KEYWORDS,
         ),
         deny_keywords=_csv("DENY_KEYWORDS", "usado,quebrado,defeito,recondicionado,replica,imitacao,falso"),
-        min_price=_float("MIN_PRICE", 50.0),           # ignora produtos abaixo de R$ 50
+        min_price=_float("MIN_PRICE", 80.0),
         max_price=_float("MAX_PRICE", 0.0),
-        min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 10.0),  # mínimo 10% de desconto
-        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 20.0),  # qualidade mínima maior
+        min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 15.0),
+        min_score_to_publish=_float("MIN_SCORE_TO_PUBLISH", 35.0),
         require_product_image=_bool("REQUIRE_PRODUCT_IMAGE", True),
-        min_sold_quantity=_int("MIN_SOLD_QUANTITY", 10),   # mais popular (era 5)
-        min_seller_transactions=_int("MIN_SELLER_TRANSACTIONS", 50),  # vendedor mais confiável (era 25)
+        min_sold_quantity=_int("MIN_SOLD_QUANTITY", 20),
+        min_seller_transactions=_int("MIN_SELLER_TRANSACTIONS", 50),
         manual_products_path=manual_products,
         manual_affiliate_template=os.getenv("MANUAL_AFFILIATE_TEMPLATE", ""),
         manual_affiliate_id=os.getenv("MANUAL_AFFILIATE_ID", ""),
