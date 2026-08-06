@@ -211,6 +211,10 @@ class AppConfig:
     amazon_bestsellers_pages: int = 1
     amazon_bestsellers_attempts: int = 4
     amazon_bestsellers_delay: float = 4.0
+    # Ler as 12 categorias a cada execucao levava ~4 min e provocava 503.
+    # Em rodizio, cada execucao fica em ~1 min e a lista inteira e coberta.
+    amazon_bestsellers_interval_hours: float = 1.0
+    amazon_bestsellers_per_run: int = 3
 
     telegram_bot_token: str = ""
     telegram_chat_ids: list[str] = field(default_factory=list)
@@ -353,6 +357,8 @@ def load_config() -> AppConfig:
         amazon_bestsellers_pages=_int("AMAZON_BESTSELLERS_PAGES", 1),
         amazon_bestsellers_attempts=_int("AMAZON_BESTSELLERS_ATTEMPTS", 4),
         amazon_bestsellers_delay=_float("AMAZON_BESTSELLERS_DELAY", 4.0),
+        amazon_bestsellers_interval_hours=_float("AMAZON_BESTSELLERS_INTERVAL_HOURS", 1.0),
+        amazon_bestsellers_per_run=_int("AMAZON_BESTSELLERS_PER_RUN", 3),
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         telegram_chat_ids=_csv("TELEGRAM_CHAT_IDS"),
         telegram_tech_bot_token=os.getenv("TELEGRAM_TECH_BOT_TOKEN", "").strip(),

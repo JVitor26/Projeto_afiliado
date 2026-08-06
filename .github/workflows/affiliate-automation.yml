@@ -351,7 +351,7 @@ jobs:
           python -m afiliado_bot init-db
           # --no-publish: quem posta e o passo "Publicar oferta", que ranqueia
           # os produtos de todas as fontes juntos.
-          python -m afiliado_bot amazon-bestsellers --no-publish || \
+          python -m afiliado_bot amazon-bestsellers --no-publish --rotate || \
             echo "::warning::Leitura dos Mais Vendidos falhou nesta execucao (Amazon costuma responder 503); segue com as demais fontes."
 
       - name: Publicar oferta

@@ -215,6 +215,11 @@ def main(argv: list[str] | None = None) -> int:
     bestsellers_parser.add_argument("--dry-run", action="store_true", help="nao envia ao Telegram; so mostra preview")
     bestsellers_parser.add_argument("--no-publish", action="store_true", help="so minera, nao publica")
     bestsellers_parser.add_argument("--loop", action="store_true", help="repete a cada INTERVAL_MINUTES")
+    bestsellers_parser.add_argument(
+        "--rotate",
+        action="store_true",
+        help="le poucas categorias por vez, em rodizio (usado na automacao para o ciclo ficar curto)",
+    )
 
     publish_parser = subparsers.add_parser("publish", help="publica os melhores produtos")
     publish_parser.add_argument("--limit", type=int)
@@ -907,6 +912,7 @@ def main(argv: list[str] | None = None) -> int:
                 site_limit=args.site_limit,
                 dry_run=args.dry_run,
                 publish=not args.no_publish,
+                respect_throttle=args.rotate,
             )
             print(f"Categorias lidas: {report['categories']}")
             print(f"Produtos importados: {report['imported']}")
@@ -1167,6 +1173,16 @@ def mercadolivre_policy(config: AppConfig) -> ThrottlePolicy:
     )
 
 
+def bestsellers_policy(config: AppConfig) -> ThrottlePolicy:
+    return ThrottlePolicy(
+        interval_hours=config.amazon_bestsellers_interval_hours,
+        keywords_per_run=config.amazon_bestsellers_per_run,
+        max_calls_per_day=0,
+        max_error_streak=0,   # 503 da Amazon e comum e passageiro: nao pausar por isso
+        pause_hours=0,
+    )
+
+
 def mine_without_mercadolivre(
     config: AppConfig,
     storage: Storage,
@@ -1308,19 +1324,46 @@ def run_bestsellers_auto(
     site_limit: int,
     dry_run: bool,
     publish: bool = True,
+    respect_throttle: bool = False,
 ) -> dict[str, object]:
     """Le as listas Mais Vendidos, salva no banco, atualiza a loja e publica."""
     ranker = ProductRanker(config, storage.category_boosts())
     mining = MiningService([AmazonBestSellersClient(config)], storage, ranker)
-    # Serial e com pausa: leituras paralelas das paginas da Amazon retornam 503.
-    mining_report = mining.mine_serial(
-        categories,
-        limit_per_keyword=limit_per_category,
-        delay_seconds=config.amazon_bestsellers_delay,
-    )
 
     if not site_out.is_absolute():
         site_out = BASE_DIR / site_out
+
+    selected = categories
+    throttle: SourceThrottle | None = None
+    if respect_throttle:
+        # Ler as 12 categorias toda execucao levava ~4 min e provocava 503 na
+        # Amazon. Em rodizio, cada execucao le poucas e a lista inteira e
+        # coberta ao longo das horas — ranking de mais vendidos nao muda de
+        # 8 em 8 minutos.
+        throttle = SourceThrottle(storage, "amazon_bestsellers", bestsellers_policy(config))
+        allowed, reason = throttle.check()
+        if not allowed:
+            print(f"Mais Vendidos: pulado — {reason}")
+            return {
+                "categories": 0,
+                "imported": 0,
+                "skipped": 0,
+                "errors": [],
+                "site_out": str(site_out),
+                "sent": 0,
+            }
+        selected = throttle.next_keywords(categories)
+        print(f"Mais Vendidos: {len(selected)} de {len(categories)} categorias nesta janela ({', '.join(selected)})")
+
+    # Serial e com pausa: leituras paralelas das paginas da Amazon retornam 503.
+    mining_report = mining.mine_serial(
+        selected,
+        limit_per_keyword=limit_per_category,
+        delay_seconds=config.amazon_bestsellers_delay,
+    )
+    if throttle:
+        throttle.record_run(keywords_used=len(selected), errors=len(mining_report.errors))
+
     export_store_products(storage, site_out, limit=site_limit, keep_existing_if_empty=True)
 
     sent = 0
@@ -1330,7 +1373,7 @@ def run_bestsellers_auto(
         sent = publishing.publish(limit=publish_limit, dry_run=dry_run, min_score=min_score)
 
     return {
-        "categories": len(categories),
+        "categories": len(selected),
         "imported": mining_report.imported,
         "skipped": mining_report.skipped,
         "errors": mining_report.errors,
