@@ -66,6 +66,22 @@ def main(argv: list[str] | None = None) -> int:
     shopee_test_parser.add_argument("--keyword", default="air fryer")
     shopee_test_parser.add_argument("--limit", type=int, default=5)
 
+    panel_login_parser = subparsers.add_parser(
+        "shopee-panel-login",
+        help="abre o navegador para logar na Shopee e guarda a sessao (use quando a API nao foi liberada)",
+    )
+    panel_login_parser.add_argument("--session", default=str(BASE_DIR / "data" / "shopee_session.json"))
+
+    panel_parser = subparsers.add_parser(
+        "shopee-panel-import",
+        help="le o painel de afiliados da Shopee e importa as ofertas com link",
+    )
+    panel_parser.add_argument("--session", default=str(BASE_DIR / "data" / "shopee_session.json"))
+    panel_parser.add_argument("--limit", type=int, default=20, help="quantas ofertas coletar (padrao: 20)")
+    panel_parser.add_argument("--csv-out", default=str(BASE_DIR / "data" / "manual_products.csv"))
+    panel_parser.add_argument("--show-browser", action="store_true", help="mostra o navegador durante a coleta")
+    panel_parser.add_argument("--dry-run", action="store_true", help="coleta e mostra, sem gravar no CSV")
+
     ml_auth_parser = subparsers.add_parser("mercadolivre-auth-url", help="gera link para autorizar o app Mercado Livre")
     ml_auth_parser.add_argument("--redirect-uri", help="mesma URL de redirect cadastrada no app Mercado Livre")
     ml_auth_parser.add_argument("--state", help="valor opcional para validar o retorno OAuth")
@@ -317,6 +333,58 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Produtos retornados: {len(products)}")
         for product in products[: args.limit]:
             print(f"- {product.title} | {product.currency} {product.price:.2f}")
+        return 0
+
+    if args.command == "shopee-panel-login":
+        from .commands import shopee_panel
+
+        try:
+            shopee_panel.save_session(Path(args.session))
+        except shopee_panel.PanelError as exc:
+            print(f"[erro] {exc}")
+            return 2
+        return 0
+
+    if args.command == "shopee-panel-import":
+        from .commands import shopee_panel
+
+        try:
+            report = shopee_panel.collect_offers(
+                Path(args.session),
+                limit=args.limit,
+                headless=not args.show_browser,
+            )
+        except shopee_panel.PanelError as exc:
+            print(f"[erro] {exc}")
+            return 2
+
+        print(f"Ofertas coletadas: {report.collected}")
+        if report.without_link:
+            print(f"Sem link de afiliado: {report.without_link}")
+        for offer in report.offers:
+            commission = f" | comissao {offer.commission_rate * 100:.0f}%" if offer.commission_rate else ""
+            print(f"- R$ {offer.price:>8.2f}  {offer.title[:50]}{commission}")
+            print(f"    {offer.affiliate_url}")
+        if report.errors:
+            print("\nAvisos:")
+            for error in report.errors[:10]:
+                print(f"- {error}")
+
+        if not report.offers:
+            print("\nNada coletado. Se os seletores mudaram, rode com --show-browser para ver a tela.")
+            return 2
+
+        if args.dry_run:
+            print("\n(dry-run: nada gravado)")
+            return 0
+
+        csv_path = Path(args.csv_out)
+        if not csv_path.is_absolute():
+            csv_path = BASE_DIR / csv_path
+        added = shopee_panel.write_manual_csv(report.offers, csv_path)
+        print(f"\nNovas linhas no CSV: {added} (duplicadas foram ignoradas)")
+        print(f"Arquivo: {csv_path}")
+        print("Agora rode: python -m afiliado_bot manual-import")
         return 0
 
     if args.command == "shopee-test":

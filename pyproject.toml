@@ -5,6 +5,12 @@ description = "Sistema de mineracao e publicacao automatica de ofertas afiliadas
 requires-python = ">=3.11"
 dependencies = []
 
+# Opcional: so para ler o painel de afiliados da Shopee com navegador
+# (shopee-panel-import), usado quando a Open API nao foi liberada.
+# Instale com: pip install "projeto-afiliado[panel]" && playwright install chromium
+[project.optional-dependencies]
+panel = ["playwright>=1.40"]
+
 [tool.setuptools.packages.find]
 include = ["afiliado_bot*"]
 

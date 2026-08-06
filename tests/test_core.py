@@ -1,3 +1,4 @@
+import csv
 import tempfile
 import unittest
 import json
@@ -1244,6 +1245,93 @@ class ShopeeOpenApiTest(unittest.TestCase):
             products = client.fetch("air fryer", limit=5)
 
         self.assertEqual(products, [])
+
+
+class ShopeePanelTest(unittest.TestCase):
+    """Painel via navegador, usado quando a Open API nao foi liberada."""
+
+    def test_parses_values_as_shown_in_the_panel(self):
+        from afiliado_bot.commands.shopee_panel import _SALES, _SHORT_LINK, _money, _sales_to_int
+
+        self.assertAlmostEqual(_money("69,98"), 69.98)
+        self.assertAlmostEqual(_money("1.234,56"), 1234.56)
+        self.assertEqual(_sales_to_int("7", "mil"), 7000)
+        self.assertEqual(_sales_to_int("50", None), 50)
+        self.assertEqual(_SALES.search("8mil+ vendas").groups(), ("8", "mil"))
+        self.assertEqual(
+            _SHORT_LINK.search("Por favor, copie o link https://s.shopee.com.br/19NjoyPDx").group(0),
+            "https://s.shopee.com.br/19NjoyPDx",
+        )
+
+    def _offer(self, link="https://s.shopee.com.br/19NjoyPDx"):
+        from afiliado_bot.commands.shopee_panel import PanelOffer
+
+        return PanelOffer(
+            title="Bomba de Ar Portatil Compressor",
+            price=69.98,
+            original_price=199.94,
+            commission_rate=0.06,
+            sold_quantity=7000,
+            image_url="https://cf.shopee.com.br/file/abc.jpg",
+            product_url="https://affiliate.shopee.com.br/offer/product_offer/22794290449",
+            affiliate_url=link,
+        )
+
+    def test_csv_row_is_approved_and_keeps_the_affiliate_link(self):
+        from afiliado_bot.commands.shopee_panel import write_manual_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manual.csv"
+            added = write_manual_csv([self._offer()], path)
+
+            with path.open("r", encoding="utf-8-sig", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(added, 1)
+        self.assertEqual(rows[0]["approved"], "yes")
+        self.assertEqual(rows[0]["source"], "shopee")
+        self.assertEqual(rows[0]["affiliate_url"], "https://s.shopee.com.br/19NjoyPDx")
+
+    def test_rerunning_does_not_duplicate_the_same_offer(self):
+        from afiliado_bot.commands.shopee_panel import write_manual_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manual.csv"
+            write_manual_csv([self._offer()], path)
+            # Coletar de novo o mesmo produto nao pode gerar linha repetida
+            added = write_manual_csv([self._offer()], path)
+
+            with path.open("r", encoding="utf-8-sig", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(added, 0)
+        self.assertEqual(len(rows), 1)
+
+    def test_panel_offer_becomes_a_publishable_product(self):
+        import dataclasses
+        from afiliado_bot.commands.shopee_panel import write_manual_csv
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manual.csv"
+            write_manual_csv([self._offer()], path)
+            config = dataclasses.replace(AppConfig(), manual_products_path=path)
+            products = ManualProductClient(config).fetch_all(limit=10)
+
+        self.assertEqual(len(products), 1)
+        product = products[0]
+        self.assertEqual(product.source, "shopee")
+        self.assertEqual(product.affiliate_url, "https://s.shopee.com.br/19NjoyPDx")
+        # 69,98 vindo de 199,94 e o "65% OFF" que o painel mostra
+        self.assertAlmostEqual(product.discount_percent, 65.0, delta=0.6)
+
+    def test_missing_playwright_explains_how_to_install(self):
+        from afiliado_bot.commands import shopee_panel
+
+        with patch.dict("sys.modules", {"playwright.sync_api": None, "playwright": None}):
+            with self.assertRaises(shopee_panel.PanelError) as ctx:
+                shopee_panel._playwright()
+
+        self.assertIn("pip install playwright", str(ctx.exception))
 
 
 class SourceHealthTest(unittest.TestCase):
