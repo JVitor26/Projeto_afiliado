@@ -22,11 +22,19 @@ A sessao e credencial: fica fora do git (.gitignore) e nao deve ser commitada.
 
 from __future__ import annotations
 
-import csv
 import logging
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
+
+from .panel_common import (
+    PanelError,
+    PanelOffer,
+    PanelReport,
+    money as _money,
+    playwright_or_explain,
+    sold_to_int as _sales_to_int,
+)
+from .panel_common import write_manual_csv as _write_manual_csv
 
 log = logging.getLogger(__name__)
 
@@ -53,47 +61,9 @@ _PERCENT = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _SALES = re.compile(r"([\d.,]+)\s*(mil|k)?\+?\s*vendas", re.IGNORECASE)
 
 
-class PanelError(RuntimeError):
-    pass
-
-
-@dataclass
-class PanelOffer:
-    title: str = ""
-    price: float = 0.0
-    original_price: float | None = None
-    commission_rate: float | None = None
-    sold_quantity: int | None = None
-    image_url: str = ""
-    product_url: str = ""
-    affiliate_url: str = ""
-    discount_percent: float | None = None
-    notes: str = ""
-
-
-@dataclass
-class PanelReport:
-    collected: int = 0
-    without_link: int = 0
-    offers: list[PanelOffer] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-
-
-def _playwright():
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:  # pragma: no cover - depende do ambiente
-        raise PanelError(
-            "Playwright nao instalado. Rode:\n"
-            "  pip install playwright\n"
-            "  playwright install chromium"
-        ) from exc
-    return sync_playwright
-
-
 def save_session(session_path: Path, *, timeout_seconds: int = 300) -> None:
     """Abre o navegador para login manual e guarda os cookies da sessao."""
-    sync_playwright = _playwright()
+    sync_playwright = playwright_or_explain()
     session_path.parent.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
@@ -134,7 +104,7 @@ def collect_offers(
             "Rode primeiro: python -m afiliado_bot shopee-panel-login"
         )
 
-    sync_playwright = _playwright()
+    sync_playwright = playwright_or_explain()
     report = PanelReport()
 
     with sync_playwright() as p:
@@ -277,75 +247,7 @@ def _get_affiliate_link(page, card, *, delay_ms: int) -> str:
 
 
 def write_manual_csv(offers: list[PanelOffer], csv_path: Path, *, append: bool = True) -> int:
-    """Grava as ofertas no CSV manual que o `mine` ja consome.
-
-    Deduplica pelo link de afiliado para nao repetir produto ao rodar de novo.
-    """
-    from afiliado_bot.clients.manual import manual_csv_headers
-
-    headers = manual_csv_headers()
-    existing: list[dict[str, str]] = []
-    seen: set[str] = set()
-
-    if append and csv_path.exists():
-        with csv_path.open("r", encoding="utf-8-sig", newline="") as file:
-            for row in csv.DictReader(file):
-                existing.append(row)
-                link = (row.get("affiliate_url") or "").strip()
-                if link:
-                    seen.add(link)
-
-    added = 0
-    rows = list(existing)
-    for offer in offers:
-        if offer.affiliate_url in seen:
-            continue
-        seen.add(offer.affiliate_url)
-        rows.append(
-            {
-                "approved": "yes",
-                "source": "shopee",
-                "title": offer.title,
-                "price": f"{offer.price:.2f}" if offer.price else "",
-                "original_price": f"{offer.original_price:.2f}" if offer.original_price else "",
-                "currency": "BRL",
-                "url": offer.product_url,
-                "affiliate_url": offer.affiliate_url,
-                "image_url": offer.image_url,
-                "category": "",
-                "rating": "",
-                "sold_quantity": str(offer.sold_quantity) if offer.sold_quantity else "",
-                "free_shipping": "",
-                "commission_rate": f"{offer.commission_rate:.4f}" if offer.commission_rate else "",
-                "keywords": "",
-                "notes": offer.notes or "importado do painel Shopee",
-            }
-        )
-        added += 1
-
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    with csv_path.open("w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=headers)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({key: row.get(key, "") for key in headers})
-
-    return added
+    """Grava as ofertas coletadas no CSV manual, marcadas como Shopee."""
+    return _write_manual_csv(offers, csv_path, source="shopee", append=append)
 
 
-def _money(text: str) -> float:
-    cleaned = text.strip().replace(".", "").replace(",", ".")
-    try:
-        return float(cleaned)
-    except ValueError:
-        return 0.0
-
-
-def _sales_to_int(number: str, unit: str | None) -> int | None:
-    try:
-        value = float(number.replace(".", "").replace(",", "."))
-    except ValueError:
-        return None
-    if unit and unit.lower() in {"mil", "k"}:
-        value *= 1000
-    return int(value)

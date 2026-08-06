@@ -1325,11 +1325,11 @@ class ShopeePanelTest(unittest.TestCase):
         self.assertAlmostEqual(product.discount_percent, 65.0, delta=0.6)
 
     def test_missing_playwright_explains_how_to_install(self):
-        from afiliado_bot.commands import shopee_panel
+        from afiliado_bot.commands import panel_common
 
         with patch.dict("sys.modules", {"playwright.sync_api": None, "playwright": None}):
-            with self.assertRaises(shopee_panel.PanelError) as ctx:
-                shopee_panel._playwright()
+            with self.assertRaises(panel_common.PanelError) as ctx:
+                panel_common.playwright_or_explain()
 
         self.assertIn("pip install playwright", str(ctx.exception))
 
@@ -1425,6 +1425,103 @@ class ThrottleTest(unittest.TestCase):
 
         # O padrao antigo (41 keywords a cada 8 min) dava ~221 mil/mes
         self.assertLess(chamadas_por_mes, 2000)
+
+
+class AliExpressPanelTest(unittest.TestCase):
+    """Painel via navegador, usado porque a API de afiliados nao foi liberada."""
+
+    def test_recognizes_the_tracking_link_from_the_balloon(self):
+        from afiliado_bot.commands.aliexpress_panel import _TRACKING_LINK
+
+        html = ('<a href="https://s.click.aliexpress.com/e/_c4SZDTQX" target="_blank">'
+                '<img src="//ae01.alicdn.com/kf/S929da6e903404e039c5b6f091cc2a5d7p.jpg">')
+
+        self.assertEqual(
+            _TRACKING_LINK.search(html).group(0),
+            "https://s.click.aliexpress.com/e/_c4SZDTQX",
+        )
+
+    def test_ignores_links_that_are_not_tracking(self):
+        from afiliado_bot.commands.aliexpress_panel import _TRACKING_LINK
+
+        self.assertIsNone(_TRACKING_LINK.search("https://www.aliexpress.com/item/1005012669721097.html"))
+
+    def test_extracts_item_id_from_product_url(self):
+        from afiliado_bot.commands.aliexpress_panel import _ITEM_ID
+
+        match = _ITEM_ID.search("//pt.aliexpress.com/item/1005012669721097.html?spm=a2g0o")
+        self.assertEqual(match.group(1), "1005012669721097")
+
+    def test_parses_prices_and_sold_count_from_the_listing(self):
+        from afiliado_bot.commands.aliexpress_panel import _SOLD
+        from afiliado_bot.commands.panel_common import money, sold_to_int
+
+        # Valores como aparecem na busca: R$133,59 / R$162,91 / "1.000+ sold"
+        self.assertAlmostEqual(money("R$133,59"), 133.59)
+        self.assertAlmostEqual(money("R$1.800,00"), 1800.00)
+        self.assertEqual(sold_to_int(_SOLD.search("1,000+ sold").group(1)), 1000)
+        self.assertEqual(sold_to_int(_SOLD.search("33 sold").group(1)), 33)
+
+    def test_commission_is_stored_as_a_fraction(self):
+        from afiliado_bot.commands.aliexpress_panel import _COMMISSION
+        from afiliado_bot.commands.panel_common import money
+
+        # O painel mostra "commission: 7.0%"
+        rate = round(money(_COMMISSION.search("commission: 7.0%").group(1)) / 100, 4)
+        self.assertAlmostEqual(rate, 0.07)
+
+    def test_offer_lands_in_the_csv_as_aliexpress(self):
+        from afiliado_bot.commands.panel_common import PanelOffer, write_manual_csv
+
+        offer = PanelOffer(
+            title="RC 1:16 Remote-Controlled Vehicle for Teens",
+            price=133.59,
+            original_price=162.91,
+            commission_rate=0.07,
+            sold_quantity=32,
+            rating=5.0,
+            image_url="https://ae01.alicdn.com/kf/S929da6e.jpg",
+            product_url="https://www.aliexpress.com/item/1005012669721097.html",
+            affiliate_url="https://s.click.aliexpress.com/e/_c4SZDTQX",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manual.csv"
+            added = write_manual_csv([offer], path, source="aliexpress")
+            duplicado = write_manual_csv([offer], path, source="aliexpress")
+            with path.open("r", encoding="utf-8-sig", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual((added, duplicado), (1, 0))
+        self.assertEqual(rows[0]["source"], "aliexpress")
+        self.assertEqual(rows[0]["approved"], "yes")
+        self.assertEqual(rows[0]["affiliate_url"], "https://s.click.aliexpress.com/e/_c4SZDTQX")
+
+    def test_offer_becomes_a_publishable_product(self):
+        import dataclasses
+        from afiliado_bot.commands.panel_common import PanelOffer, write_manual_csv
+
+        offer = PanelOffer(
+            title="RC 1:16 Remote-Controlled Vehicle",
+            price=133.59,
+            original_price=162.91,
+            image_url="https://ae01.alicdn.com/kf/x.jpg",
+            product_url="https://www.aliexpress.com/item/1005012669721097.html",
+            affiliate_url="https://s.click.aliexpress.com/e/_c4SZDTQX",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manual.csv"
+            write_manual_csv([offer], path, source="aliexpress")
+            config = dataclasses.replace(AppConfig(), manual_products_path=path)
+            products = ManualProductClient(config).fetch_all(limit=5)
+
+        self.assertEqual(len(products), 1)
+        self.assertEqual(products[0].source, "aliexpress")
+        self.assertEqual(products[0].affiliate_url, "https://s.click.aliexpress.com/e/_c4SZDTQX")
+        # 133,59 vindo de 162,91 da 18,0%. A pagina do AliExpress exibe "17% off"
+        # porque arredonda para baixo; o valor calculado aqui e o correto.
+        self.assertAlmostEqual(products[0].discount_percent, 18.0, delta=0.2)
 
 
 class StoreRotationTest(unittest.TestCase):

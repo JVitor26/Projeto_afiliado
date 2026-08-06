@@ -12,3 +12,4 @@ build/
 
 # Sessao do painel Shopee: sao cookies de login, equivalem a senha.
 data/shopee_session.json
+data/aliexpress_session.json

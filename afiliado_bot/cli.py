@@ -84,6 +84,23 @@ def main(argv: list[str] | None = None) -> int:
     panel_parser.add_argument("--show-browser", action="store_true", help="mostra o navegador durante a coleta")
     panel_parser.add_argument("--dry-run", action="store_true", help="coleta e mostra, sem gravar no CSV")
 
+    ali_login_parser = subparsers.add_parser(
+        "aliexpress-panel-login",
+        help="abre o navegador para logar no AliExpress e guarda a sessao",
+    )
+    ali_login_parser.add_argument("--session", default=str(BASE_DIR / "data" / "aliexpress_session.json"))
+
+    ali_panel_parser = subparsers.add_parser(
+        "aliexpress-panel-import",
+        help="busca produtos no AliExpress e coleta o link de afiliado de cada um",
+    )
+    ali_panel_parser.add_argument("--keyword", required=True, help="o que buscar (ex: 'rc car')")
+    ali_panel_parser.add_argument("--session", default=str(BASE_DIR / "data" / "aliexpress_session.json"))
+    ali_panel_parser.add_argument("--limit", type=int, default=10)
+    ali_panel_parser.add_argument("--csv-out", default=str(BASE_DIR / "data" / "manual_products.csv"))
+    ali_panel_parser.add_argument("--show-browser", action="store_true")
+    ali_panel_parser.add_argument("--dry-run", action="store_true", help="coleta e mostra, sem gravar")
+
     ml_auth_parser = subparsers.add_parser("mercadolivre-auth-url", help="gera link para autorizar o app Mercado Livre")
     ml_auth_parser.add_argument("--redirect-uri", help="mesma URL de redirect cadastrada no app Mercado Livre")
     ml_auth_parser.add_argument("--state", help="valor opcional para validar o retorno OAuth")
@@ -361,6 +378,57 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Produtos retornados: {len(products)}")
         for product in products[: args.limit]:
             print(f"- {product.title} | {product.currency} {product.price:.2f}")
+        return 0
+
+    if args.command == "aliexpress-panel-login":
+        from .commands import aliexpress_panel
+
+        try:
+            aliexpress_panel.save_session(Path(args.session))
+        except aliexpress_panel.PanelError as exc:
+            print(f"[erro] {exc}")
+            return 2
+        return 0
+
+    if args.command == "aliexpress-panel-import":
+        from .commands import aliexpress_panel, panel_common
+
+        try:
+            report = aliexpress_panel.collect_offers(
+                Path(args.session),
+                args.keyword,
+                limit=args.limit,
+                headless=not args.show_browser,
+            )
+        except aliexpress_panel.PanelError as exc:
+            print(f"[erro] {exc}")
+            return 2
+
+        print(f"Ofertas coletadas: {report.collected}")
+        if report.without_link:
+            print(f"Sem link de afiliado: {report.without_link}")
+        for offer in report.offers:
+            commission = f" | comissao {offer.commission_rate * 100:.1f}%" if offer.commission_rate else ""
+            print(f"- R$ {offer.price:>8.2f}  {offer.title[:48]}{commission}")
+            print(f"    {offer.affiliate_url}")
+        if report.errors:
+            print("\nAvisos:")
+            for error in report.errors[:10]:
+                print(f"- {error}")
+
+        if not report.offers:
+            print("\nNada coletado. Rode com --show-browser para ver a tela.")
+            return 2
+        if args.dry_run:
+            print("\n(dry-run: nada gravado)")
+            return 0
+
+        csv_path = Path(args.csv_out)
+        if not csv_path.is_absolute():
+            csv_path = BASE_DIR / csv_path
+        added = panel_common.write_manual_csv(report.offers, csv_path, source="aliexpress")
+        print(f"\nNovas linhas no CSV: {added} (duplicadas ignoradas)")
+        print("Agora rode: python -m afiliado_bot manual-import")
         return 0
 
     if args.command == "shopee-panel-login":

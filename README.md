@@ -213,6 +213,31 @@ Para minerar e publicar no mesmo ciclo:
 python -m afiliado_bot amazon-bestsellers --loop
 ```
 
+## AliExpress pelo painel (sem API)
+
+Sem API de afiliados liberada, o caminho e o mesmo da Shopee: automatizar o que
+se faz na mao. No AliExpress o botao **Get link** fica na **pagina do produto**,
+no cabecalho do plugin de afiliado — nao numa lista. Por isso a coleta busca a
+palavra-chave e abre um produto por vez.
+
+O link que sai (`s.click.aliexpress.com/e/...`) ja carrega o seu Tracking ID,
+entao nao ha template para configurar.
+
+```powershell
+pip install playwright
+playwright install chromium
+
+python -m afiliado_bot aliexpress-panel-login
+python -m afiliado_bot aliexpress-panel-import --keyword "rc car" --limit 10 --dry-run
+```
+
+Sem `--dry-run`, as ofertas vao para `data/manual_products.csv` com
+`approved=yes` e entram no fluxo normal pelo `manual-import`.
+
+A sessao salva sao cookies de login: fica no `.gitignore` e nao deve ser
+commitada. Por depender de sessao de navegador, este comando roda **local**, nao
+no GitHub Actions.
+
 ## Rodizio de lojas
 
 Cada execucao minera **uma loja**, nao todas. Minerar tudo a cada ciclo deixava
