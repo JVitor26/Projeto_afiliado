@@ -33,9 +33,6 @@ jobs:
   automacao:
     name: Minerar, publicar e atualizar site
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     env:
       DATABASE_PATH: data/affiliate.db
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
@@ -373,7 +370,20 @@ jobs:
         with:
           path: site
 
+  # O deploy do Pages fica em job separado de proposito. Declarar
+  # `environment: github-pages` no job principal fazia a mineracao e a
+  # publicacao no Telegram ficarem presas atras do environment: qualquer
+  # instabilidade do Pages/Actions deixava o job inteiro em "waiting" e o canal
+  # em silencio, mesmo sem relacao com o site.
+  deploy:
+    name: Publicar GitHub Pages
+    needs: automacao
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Publicar GitHub Pages
         id: deployment
-        if: env.DRY_RUN != 'true'
         uses: actions/deploy-pages@v4
