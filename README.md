@@ -240,6 +240,28 @@ no GitHub Actions.
 
 ## Rodizio de lojas
 
+O rodizio acontece em dois momentos, com cursores independentes:
+
+- **Ao minerar** — cada execucao busca produtos de **uma** loja.
+- **Ao publicar** — cada post sai de uma loja diferente, para o canal nao virar
+  vitrine de uma marca so.
+
+### Ao publicar
+
+Com estoque de varias lojas, tres posts seguidos saem assim:
+
+```
+execucao 1: aliexpress -> amazon -> mercadolivre
+execucao 2: shopee -> aliexpress -> amazon
+execucao 3: mercadolivre -> shopee -> aliexpress
+```
+
+O cursor fica salvo, entao a alternancia continua de uma execucao para a
+outra. Quando so uma loja tem produto, ela publica sozinha — melhor do que
+deixar o canal mudo.
+
+### Ao minerar
+
 Cada execucao minera **uma loja**, nao todas. Minerar tudo a cada ciclo deixava
 o processo longo, dava a cada marketplace muito mais chamadas do que ele precisa
 e fazia uma loja lenta atrasar as outras — ofertas e rankings nao mudam de 8 em

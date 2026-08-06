@@ -14,6 +14,9 @@ from afiliado_bot.storage import Storage, are_titles_similar
 
 log = logging.getLogger(__name__)
 
+# Cursor do rodizio de lojas na publicacao, guardado no source_state.
+_PUBLISH_CURSOR = "_publish_rotation"
+
 
 class PublishingService:
     def __init__(self, config: AppConfig, storage: Storage, posters: list[Poster]) -> None:
@@ -23,18 +26,23 @@ class PublishingService:
 
     def publish(self, *, limit: int, dry_run: bool = False, min_score: float | None = None) -> int:
         score_floor = self.config.min_score_to_publish if min_score is None else min_score
-        products = self.storage.list_candidates(
-            limit=limit,
+        # Busca um lote maior que o necessario para ter de onde revezar as lojas
+        pool = self.storage.list_candidates(
+            limit=max(limit * 8, limit),
             min_score=score_floor,
             unpublished_only=not dry_run,
         )
+        products = self._rotate_by_source(pool, limit)
         is_repost = False
         if not products and not dry_run and self.config.repost_after_minutes > 0:
-            products = self.storage.list_repost_candidates(
-                limit=limit,
+            repost_pool = self.storage.list_repost_candidates(
+                limit=max(limit * 8, limit),
                 min_score=score_floor,
                 cooldown_minutes=self.config.repost_after_minutes,
             )
+            # Repost tambem reveza: repetir a mesma loja seguidas vezes e o que
+            # deixa o canal com cara de vitrine de uma loja so.
+            products = self._rotate_by_source(repost_pool, limit)
             is_repost = True
 
         # Deduplicação por similaridade: evita repetir a mesma família de produto
@@ -68,6 +76,42 @@ class PublishingService:
             self._alert_zero_published(len(products))
 
         return sent
+
+    def _rotate_by_source(self, pool: list[Product], limit: int) -> list[Product]:
+        """Alterna a loja a cada post, em vez de despejar varios da mesma.
+
+        Sem isso o canal publica tres Amazon seguidas so porque foi a loja que
+        mais minerou. O cursor fica salvo, entao a alternancia continua de uma
+        execucao para a outra — nao reinicia sempre na mesma loja.
+        """
+        if not pool:
+            return []
+
+        by_source: dict[str, list[Product]] = {}
+        for product in pool:
+            by_source.setdefault(product.source, []).append(product)
+
+        sources = sorted(by_source)
+        if len(sources) == 1:
+            return by_source[sources[0]][:limit]
+
+        state = self.storage.get_source_state(_PUBLISH_CURSOR)
+        cursor = int(state.get("keyword_cursor") or 0)
+
+        chosen: list[Product] = []
+        attempts = 0
+        max_attempts = len(sources) * (limit + 1)
+        while len(chosen) < limit and attempts < max_attempts:
+            source = sources[cursor % len(sources)]
+            cursor += 1
+            attempts += 1
+            fila = by_source.get(source)
+            if fila:
+                chosen.append(fila.pop(0))
+
+        self.storage.save_source_state(_PUBLISH_CURSOR, keyword_cursor=cursor)
+        log.info("publicando de: %s", ", ".join(p.source for p in chosen) or "nenhuma loja")
+        return chosen
 
     def _send_product(self, product: Product, dry_run: bool) -> int:
         message = build_offer_message(product, self.config.public_base_url)

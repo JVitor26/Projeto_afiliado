@@ -1524,6 +1524,84 @@ class AliExpressPanelTest(unittest.TestCase):
         self.assertAlmostEqual(products[0].discount_percent, 18.0, delta=0.2)
 
 
+class PublishRotationTest(unittest.TestCase):
+    """O canal nao pode virar vitrine de uma loja so."""
+
+    def _setup(self, tmp, estoque):
+        storage = Storage(Path(tmp) / "pub.db")
+        storage.init_db()
+        for source, titulos in estoque.items():
+            for index, titulo in enumerate(titulos):
+                storage.upsert_product(Product(
+                    source=source,
+                    external_id=f"{source}{index}",
+                    title=titulo,
+                    price=100 + index,
+                    currency="BRL",
+                    permalink=f"https://x/{source}{index}",
+                    affiliate_url=f"https://x/{source}{index}",
+                    image_url="https://img/x.jpg",
+                    score=90 - index,
+                ))
+        poster = CapturePoster()
+        config = AppConfig(min_score_to_publish=10, repost_after_minutes=0)
+        return storage, poster, PublishingService(config, storage, [poster])
+
+    def test_one_run_mixes_the_stores(self):
+        estoque = {
+            "amazon": ["Echo Dot", "Kindle", "Fire Stick"],
+            "aliexpress": ["Drone RC", "Lanterna Tatica"],
+            "shopee": ["Bomba de Ar", "Ring Light"],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            _, poster, service = self._setup(tmp, estoque)
+            service.publish(limit=3)
+            fontes = [product.source for _, product in poster.messages]
+
+        # Tres posts, tres lojas diferentes — nao tres da mesma
+        self.assertEqual(len(fontes), 3)
+        self.assertEqual(len(set(fontes)), 3)
+
+    def test_next_run_continues_the_rotation(self):
+        estoque = {
+            "amazon": ["Echo Dot", "Kindle", "Fire Stick", "Air Fryer"],
+            "aliexpress": ["Drone RC", "Lanterna Tatica"],
+            "shopee": ["Bomba de Ar", "Ring Light"],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            _, poster, service = self._setup(tmp, estoque)
+            service.publish(limit=1)
+            primeira = poster.messages[-1][1].source
+            service.publish(limit=1)
+            segunda = poster.messages[-1][1].source
+
+        # O cursor sobrevive entre execucoes, entao nao repete a mesma loja
+        self.assertNotEqual(primeira, segunda)
+
+    def test_falls_back_to_the_only_store_with_stock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, poster, service = self._setup(tmp, {"amazon": ["Echo Dot", "Kindle", "Fire Stick"]})
+            service.publish(limit=3)
+            fontes = [product.source for _, product in poster.messages]
+
+        # Com uma loja so, publicar dela e melhor do que deixar o canal mudo
+        self.assertEqual(fontes, ["amazon", "amazon", "amazon"])
+
+    def test_store_that_runs_out_gives_room_to_the_others(self):
+        estoque = {
+            "amazon": ["Echo Dot", "Kindle", "Fire Stick"],
+            "shopee": ["Bomba de Ar"],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            _, poster, service = self._setup(tmp, estoque)
+            service.publish(limit=4)
+            fontes = [product.source for _, product in poster.messages]
+
+        self.assertEqual(len(fontes), 4)
+        self.assertEqual(fontes.count("shopee"), 1)
+        self.assertEqual(fontes.count("amazon"), 3)
+
+
 class StoreRotationTest(unittest.TestCase):
     """Uma loja por execucao, para o ciclo nao pesar."""
 
