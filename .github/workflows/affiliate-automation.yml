@@ -299,6 +299,25 @@ jobs:
             python -m afiliado_bot mercadolivre-refresh-token --github-env
           fi
 
+      # O refresh token do Mercado Livre e de uso unico: cada renovacao devolve
+      # um novo e invalida o anterior. Como o passo acima so grava no GITHUB_ENV
+      # (que vive um run), sem este passo a proxima execucao reapresentaria um
+      # token ja consumido — e o ML passaria a responder 401 para sempre.
+      - name: Persistir refresh token do Mercado Livre
+        if: env.MERCADOLIVRE_REFRESH_TOKEN != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_SECRETS_TOKEN nao configurado. O refresh token renovado nao sera salvo, entao o Mercado Livre voltara a falhar com 401 na proxima execucao. Crie um token com permissao de escrita em secrets e cadastre como GH_SECRETS_TOKEN."
+            exit 0
+          fi
+          gh secret set MERCADOLIVRE_REFRESH_TOKEN --body "$MERCADOLIVRE_REFRESH_TOKEN"
+          gh secret set MERCADOLIVRE_ACCESS_TOKEN --body "$MERCADOLIVRE_ACCESS_TOKEN"
+          echo "Tokens do Mercado Livre persistidos nos secrets."
+
       - name: Postar link manual (quando URL informada)
         if: github.event_name == 'workflow_dispatch' && inputs.product_url != ''
         shell: bash
@@ -349,6 +368,15 @@ jobs:
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
           python -m afiliado_bot generate-stats
           python -m afiliado_bot stats
+
+      # Uma loja pode morrer em silencio (credencial expirada, API bloqueada):
+      # `mine --allow-errors` engole o erro e o workflow segue verde. Este passo
+      # avisa no Telegram. Sai 1 quando ha fonte parada, mas isso nao derruba a
+      # execucao — o alerta e o objetivo, nao falhar o build.
+      - name: Vigiar saude das lojas
+        if: env.DRY_RUN != 'true'
+        shell: bash
+        run: python -m afiliado_bot check-sources --hours "${SOURCE_STALE_HOURS:-24}" || true
 
       - name: Salvar banco do bot
         if: env.DRY_RUN != 'true'

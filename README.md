@@ -160,6 +160,35 @@ Para evitar ofertas fracas, o bot exige imagem por padrao e rejeita produtos com
 
 A loja em `site/index.html` separa os produtos por departamento, mostra uma sidebar com categorias detalhadas e oferece filtros por marketplace, preco minimo, preco maximo e frete gratis. Depois de qualquer mineracao, o arquivo `site/products.js` e atualizado para refletir as categorias.
 
+## Vigiar a saude das lojas
+
+Uma loja pode parar de trazer produtos sem ninguem perceber: `mine --allow-errors`
+continua com codigo 0 para nao derrubar o ciclo por causa de uma fonte, entao o
+workflow segue verde enquanto a fonte esta morta. Foi o que aconteceu com o
+Mercado Livre, que ficou meses parado em silencio.
+
+```powershell
+python -m afiliado_bot check-sources --hours 24 --dry-run   # so mostra
+python -m afiliado_bot check-sources --hours 24             # avisa no Telegram
+```
+
+Sao vigiadas apenas as fontes que estao em `ENABLED_SOURCES` **e** tem
+credencial configurada — alertar sobre loja que nunca foi configurada vira
+ruido, e alerta que vira ruido deixa de ser lido. Roda sozinho no workflow.
+
+### Refresh token do Mercado Livre (importante)
+
+O refresh token do Mercado Livre e de **uso unico**: cada renovacao devolve um
+novo e invalida o anterior. O access token dura 6 horas. O workflow renova a
+cada execucao, mas para que a renovacao sobreviva ao proximo run e preciso
+gravar o token novo de volta no secret — senao a execucao seguinte reapresenta
+um token ja consumido e o Mercado Livre passa a responder 401 permanentemente.
+
+Para isso, crie um token de acesso pessoal com permissao de **escrita em
+secrets** neste repositorio e cadastre como secret `GH_SECRETS_TOKEN`. Sem ele o
+workflow apenas emite um aviso e o Mercado Livre volta a quebrar em algumas
+horas.
+
 ## Telegram
 
 Crie um bot no BotFather, coloque o token em `TELEGRAM_BOT_TOKEN` e informe um ou mais chats/canais em `TELEGRAM_CHAT_IDS`, separados por virgula.

@@ -230,6 +230,14 @@ def main(argv: list[str] | None = None) -> int:
         help="mantem o products.js atual quando o banco nao tiver produtos exportaveis",
     )
 
+    health_parser = subparsers.add_parser(
+        "check-sources",
+        help="avisa no Telegram quando uma loja para de trazer produtos",
+    )
+    health_parser.add_argument("--hours", type=int, default=24, help="silencio tolerado por fonte (padrao: 24h)")
+    health_parser.add_argument("--source", action="append", dest="sources", help="fonte a vigiar; repita")
+    health_parser.add_argument("--dry-run", action="store_true", help="mostra o alerta sem enviar")
+
     purge_parser = subparsers.add_parser(
         "purge-old",
         help="remove produtos antigos (oferta velha = preco errado e link morto)",
@@ -568,6 +576,31 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Produtos importados do site: {imported}")
         return 0
+
+    if args.command == "check-sources":
+        expected = args.sources or configured_sources(config)
+        stale = storage.stale_sources(expected, hours=args.hours)
+        freshness = storage.source_freshness()
+
+        print(f"Fontes vigiadas: {', '.join(expected) or '(nenhuma)'}")
+        for source in expected:
+            print(f"  {source:16} ultimo produto: {freshness.get(source) or 'nunca'}")
+
+        if not stale:
+            print(f"Todas as fontes trouxeram produtos nas ultimas {args.hours}h.")
+            return 0
+
+        print(f"\nSem produtos ha mais de {args.hours}h:")
+        for source, last_seen in stale:
+            print(f"  - {source} ({last_seen})")
+
+        if args.dry_run:
+            print("(dry-run: alerta nao enviado)")
+            return 0
+
+        sent = alert_stale_sources(config, stale, hours=args.hours)
+        print(f"Alertas enviados: {sent}")
+        return 1
 
     if args.command == "purge-old":
         removed = storage.purge_products_older_than(days=args.days, dry_run=args.dry_run)
@@ -952,6 +985,65 @@ def run_provider_auto(
         "site_out": str(site_out),
         "sent": sent,
     }
+
+
+def configured_sources(config: AppConfig) -> list[str]:
+    """Fontes que estao ligadas E tem credencial para funcionar.
+
+    Alertar sobre uma fonte que nunca foi configurada (Shopee sem header, por
+    exemplo) so gera ruido — e alerta que vira ruido deixa de ser lido.
+    "manual" fica de fora por nao ser API: depende de voce preencher a planilha.
+    """
+    enabled = {source.strip().lower() for source in config.enabled_sources}
+    candidates = {
+        "mercadolivre": bool(config.mercadolivre_access_token or config.mercadolivre_refresh_token),
+        "amazon": bool(config.amazon_partner_tag.strip()) or AmazonClient(config).enabled,
+        "shopee": ShopeeClient(config).enabled,
+        "aliexpress": AliExpressClient(config).enabled,
+    }
+    return [name for name, ready in candidates.items() if name in enabled and ready]
+
+
+_SOURCE_HINTS = {
+    "mercadolivre": "token OAuth expirado ou app sem acesso liberado no painel do Mercado Livre",
+    "amazon": "AMAZON_PARTNER_TAG ausente, ou a Amazon bloqueando a leitura (503/captcha)",
+    "shopee": "SHOPEE_AUTHORIZATION_HEADER ausente ou expirado",
+    "aliexpress": "ALIEXPRESS_APP_KEY/APP_SECRET ausentes ou assinatura recusada",
+}
+
+
+def alert_stale_sources(config: AppConfig, stale: list[tuple[str, str]], *, hours: int) -> int:
+    """Avisa no Telegram que uma loja parou de entregar produtos."""
+    token = config.telegram_bot_token
+    if not token or not config.telegram_chat_ids:
+        print("Telegram nao configurado; alerta nao enviado.")
+        return 0
+
+    lines = [
+        "🚨 <b>PromoLink — loja parada</b>",
+        "",
+        f"Sem produtos novos há mais de <b>{hours}h</b>:",
+        "",
+    ]
+    for source, last_seen in stale:
+        when = "nunca trouxe produtos" if last_seen == "nunca" else f"último: {last_seen[:16].replace('T', ' ')}"
+        lines.append(f"• <b>{source}</b> — {when}")
+        hint = _SOURCE_HINTS.get(source)
+        if hint:
+            lines.append(f"   ↳ <i>{hint}</i>")
+
+    lines += ["", "Confira o log do GitHub Actions para o erro exato."]
+    text = "\n".join(lines)
+
+    sent = 0
+    for chat_id in config.telegram_chat_ids:
+        data = urlencode({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode("utf-8")
+        try:
+            with urlopen(Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data), timeout=15):
+                sent += 1
+        except (HTTPError, URLError, OSError) as exc:
+            print(f"Falha ao alertar {chat_id}: {exc}")
+    return sent
 
 
 def run_bestsellers_auto(

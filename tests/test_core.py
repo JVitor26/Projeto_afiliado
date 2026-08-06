@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
@@ -1152,6 +1153,98 @@ class MineSerialTest(unittest.TestCase):
         self.assertEqual(provider.calls, ["electronics", "kitchen"])
         self.assertEqual(report.imported, 1)
         self.assertEqual(len(report.errors), 1)
+
+
+class SourceHealthTest(unittest.TestCase):
+    def _storage(self, tmp):
+        storage = Storage(Path(tmp) / "health.db")
+        storage.init_db()
+        return storage
+
+    def _product(self, source, external_id):
+        return Product(
+            source=source,
+            external_id=external_id,
+            title="Produto " + external_id,
+            price=199.0,
+            currency="BRL",
+            permalink="https://example.test/" + external_id,
+            affiliate_url="https://example.test/" + external_id,
+            image_url="https://img.test/x.jpg",
+        )
+
+    def test_source_that_never_delivered_is_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = self._storage(tmp)
+            storage.upsert_product(self._product("amazon", "A1"))
+
+            stale = storage.stale_sources(["amazon", "mercadolivre"], hours=24)
+
+        self.assertEqual(stale, [("mercadolivre", "nunca")])
+
+    def test_recent_source_is_not_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = self._storage(tmp)
+            storage.upsert_product(self._product("amazon", "A1"))
+
+            self.assertEqual(storage.stale_sources(["amazon"], hours=24), [])
+
+    def test_old_source_is_flagged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = self._storage(tmp)
+            product_id = storage.upsert_product(self._product("shopee", "S1"))
+            old = (datetime.now(timezone.utc) - timedelta(hours=72)).replace(microsecond=0).isoformat()
+            with storage.session() as conn:
+                conn.execute("update products set last_seen = ? where id = ?", (old, product_id))
+
+            stale = storage.stale_sources(["shopee"], hours=24)
+
+        self.assertEqual(len(stale), 1)
+        self.assertEqual(stale[0][0], "shopee")
+
+    def test_configured_sources_ignores_stores_without_credentials(self):
+        from afiliado_bot.cli import configured_sources
+
+        config = AppConfig(
+            enabled_sources=["manual", "mercadolivre", "shopee", "amazon", "aliexpress"],
+            mercadolivre_access_token="token",
+            amazon_partner_tag="67005-20",
+            # shopee e aliexpress ficam sem credencial de proposito
+        )
+
+        watched = configured_sources(config)
+
+        self.assertIn("mercadolivre", watched)
+        self.assertIn("amazon", watched)
+        # Alertar sobre loja nunca configurada seria so ruido
+        self.assertNotIn("shopee", watched)
+        self.assertNotIn("aliexpress", watched)
+        self.assertNotIn("manual", watched)
+
+    def test_disabled_source_is_not_watched(self):
+        from afiliado_bot.cli import configured_sources
+
+        config = AppConfig(enabled_sources=["amazon"], mercadolivre_access_token="token", amazon_partner_tag="t-20")
+
+        self.assertEqual(configured_sources(config), ["amazon"])
+
+
+class GithubEnvMaskTest(unittest.TestCase):
+    def test_token_is_masked_before_being_written(self):
+        from afiliado_bot.commands.mercadolivre import append_github_env
+        import io
+        from contextlib import redirect_stdout
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = Path(tmp) / "github_env"
+            env_file.touch()
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                append_github_env(str(env_file), "MERCADOLIVRE_REFRESH_TOKEN", "TG-secreto-123")
+
+            # Sem o add-mask, um token recem-gerado vazaria em claro no log
+            self.assertIn("::add-mask::TG-secreto-123", buffer.getvalue())
+            self.assertIn("TG-secreto-123", env_file.read_text(encoding="utf-8"))
 
 
 class WatermarkTest(unittest.TestCase):

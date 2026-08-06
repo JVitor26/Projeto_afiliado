@@ -72,6 +72,11 @@ def fetch_me(token: str) -> dict[str, object]:
 
 
 def append_github_env(github_env: str, key: str, value: str) -> None:
+    # ::add-mask:: registra o valor como segredo do run. Sem isso, um token
+    # recem-gerado nao e conhecido pelo Actions e sairia em claro se qualquer
+    # passo posterior imprimisse o ambiente.
+    if value:
+        print(f"::add-mask::{value}")
     with Path(github_env).open("a", encoding="utf-8") as file:
         file.write(f"{key}<<EOF\n{value}\nEOF\n")
 

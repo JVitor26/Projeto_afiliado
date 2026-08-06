@@ -144,6 +144,30 @@ class Storage:
                 """
             )
 
+    def source_freshness(self) -> dict[str, str]:
+        """Quando cada fonte trouxe produto pela ultima vez."""
+        with self.session() as conn:
+            rows = conn.execute("select source, max(last_seen) from products group by source").fetchall()
+        return {row[0]: row[1] for row in rows}
+
+    def stale_sources(self, expected: list[str], *, hours: int) -> list[tuple[str, str]]:
+        """Fontes que pararam de trazer produtos.
+
+        Devolve (fonte, ultima_vez) — com ``"nunca"`` quando a fonte nunca
+        entregou nada. Serve para flagrar credencial expirada ou API bloqueada,
+        que hoje falham em silencio porque `mine --allow-errors` engole o erro.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+        freshness = self.source_freshness()
+        stale: list[tuple[str, str]] = []
+        for source in expected:
+            last_seen = freshness.get(source)
+            if last_seen is None:
+                stale.append((source, "nunca"))
+            elif last_seen < cutoff:
+                stale.append((source, last_seen))
+        return stale
+
     def purge_products_older_than(self, *, days: int, dry_run: bool = False) -> dict[str, int]:
         """Remove produtos cujo ultimo avistamento e anterior ao corte.
 
