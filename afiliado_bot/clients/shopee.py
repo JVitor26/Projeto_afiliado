@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -31,7 +32,11 @@ class ShopeeClient:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.config.shopee_feed_path or self.config.shopee_product_feed_url)
+        return bool(
+            (self.config.shopee_app_id and self.config.shopee_app_secret)
+            or self.config.shopee_feed_path
+            or self.config.shopee_product_feed_url
+        )
 
     def fetch(self, keyword: str, *, limit: int) -> list[Product]:
         if not self.enabled:
@@ -49,9 +54,12 @@ class ShopeeClient:
                 or record.get("collectionId")
                 or keyword
             ).strip()
-            haystack = f"{title} {category}".lower()
-            if keyword_lower not in haystack:
-                continue
+            # A Open API ja pesquisou pela keyword; exigir o termo literal no
+            # titulo descartaria acerto legitimo ("air fryer" -> "Fritadeira").
+            if not record.get("_from_api"):
+                haystack = f"{title} {category}".lower()
+                if keyword_lower not in haystack:
+                    continue
 
             external_id = str(
                 record.get("offerId")
@@ -117,6 +125,9 @@ class ShopeeClient:
         return products
 
     def _load_records(self, keyword: str, limit: int) -> list[dict[str, object]]:
+        if self.config.shopee_app_id and self.config.shopee_app_secret:
+            return self._fetch_open_api(keyword, limit)
+
         if self.config.shopee_product_feed_url:
             params = urlencode(
                 {
@@ -144,6 +155,64 @@ class ShopeeClient:
                 raise ProviderError(f"Shopee feed connection error: {exc.reason}") from exc
             return _records_from_payload(payload)
 
+        return self._load_feed_file()
+
+    def _fetch_open_api(self, keyword: str, limit: int) -> list[dict[str, object]]:
+        """Consulta productOfferV2 na Open API de afiliados da Shopee."""
+        payload = json.dumps(
+            {
+                "query": _PRODUCT_OFFER_QUERY,
+                "variables": {
+                    "keyword": keyword,
+                    "sortType": self.config.shopee_sort_type,
+                    "listType": self.config.shopee_list_type,
+                    "page": self.config.shopee_start_page,
+                    "limit": max(1, min(limit, 50)),
+                },
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        timestamp = int(time.time())
+        signature = shopee_signature(
+            self.config.shopee_app_id, timestamp, payload, self.config.shopee_app_secret
+        )
+        request = Request(
+            self.config.shopee_api_url,
+            data=payload.encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "afiliado-bot/0.1",
+                "Authorization": (
+                    f"SHA256 Credential={self.config.shopee_app_id}, "
+                    f"Timestamp={timestamp}, Signature={signature}"
+                ),
+            },
+            method="POST",
+        )
+        try:
+            def _do() -> object:
+                with urlopen(request, timeout=self.timeout) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            body = retry_http(_do)
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise ProviderError(f"Shopee Open API HTTP {exc.code}: {detail[:300]}") from exc
+        except URLError as exc:
+            raise ProviderError(f"Shopee Open API connection error: {exc.reason}") from exc
+
+        # A Shopee responde 200 mesmo em erro; o problema vem em "errors".
+        if isinstance(body, dict) and body.get("errors"):
+            first = body["errors"][0] if isinstance(body["errors"], list) else body["errors"]
+            message = str((first or {}).get("message") or first)
+            raise ProviderError(f"Shopee Open API: {message[:300]}")
+
+        nodes = (
+            ((body or {}).get("data") or {}).get("productOfferV2") or {}
+        ).get("nodes") or []
+        return [_record_from_node(node) for node in nodes if isinstance(node, dict)]
+
+    def _load_feed_file(self) -> list[dict[str, object]]:
         path = self.config.shopee_feed_path
         if not path or not path.exists():
             return []
@@ -151,6 +220,57 @@ class ShopeeClient:
             return _read_csv(path)
         payload = json.loads(path.read_text(encoding="utf-8"))
         return _records_from_payload(payload)
+
+
+_PRODUCT_OFFER_QUERY = """query ($keyword: String, $sortType: Int, $listType: Int, $page: Int, $limit: Int) {
+  productOfferV2(keyword: $keyword, sortType: $sortType, listType: $listType, page: $page, limit: $limit) {
+    nodes {
+      itemId productName price priceMin priceMax priceDiscountRate
+      imageUrl productLink offerLink commissionRate commission
+      sales ratingStar shopName shopId productCatIds periodStartTime periodEndTime
+    }
+    pageInfo { page limit hasNextPage }
+  }
+}"""
+
+
+def _record_from_node(node: dict[str, object]) -> dict[str, object]:
+    """Traduz um no do productOfferV2 para o formato de registro do cliente."""
+    price = _as_float(node.get("price") or node.get("priceMin"))
+    discount = _as_float(node.get("priceDiscountRate"))
+    # A Shopee devolve o preco ja com desconto e a taxa em pontos percentuais;
+    # o preco "de" e reconstruido para a mensagem mostrar a economia.
+    original = round(price / (1 - discount / 100), 2) if 0 < discount < 100 and price > 0 else None
+    categories = node.get("productCatIds")
+    category_id = categories[0] if isinstance(categories, list) and categories else None
+
+    return {
+        "_from_api": True,
+        "offerId": node.get("itemId"),
+        "offerName": node.get("productName"),
+        "offerLink": node.get("offerLink") or node.get("productLink"),
+        "originalLink": node.get("productLink"),
+        "price": price,
+        "price_before_discount": original,
+        "imageUrl": node.get("imageUrl"),
+        "category": node.get("shopName") or "",
+        "categoryId": category_id,
+        "rating": node.get("ratingStar"),
+        "sold_quantity": node.get("sales"),
+        "commissionRate": node.get("commissionRate"),
+        "periodStartTime": node.get("periodStartTime"),
+        "periodEndTime": node.get("periodEndTime"),
+        "currency": "BRL",
+    }
+
+
+def shopee_signature(app_id: str, timestamp: int, payload: str, secret: str) -> str:
+    """Assinatura da Open API: SHA256(appId + timestamp + payload + secret).
+
+    O *payload* precisa ser exatamente o mesmo texto enviado no corpo — por isso
+    o JSON e serializado uma vez so e reaproveitado.
+    """
+    return hashlib.sha256(f"{app_id}{timestamp}{payload}{secret}".encode("utf-8")).hexdigest()
 
 
 def _records_from_payload(payload: object) -> list[dict[str, object]]:

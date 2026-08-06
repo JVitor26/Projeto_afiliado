@@ -157,6 +157,10 @@ class AppConfig:
     shopee_affiliate_id: str = ""
     shopee_sort_type: int = 1
     shopee_start_page: int = 1
+    shopee_app_id: str = ""
+    shopee_app_secret: str = ""
+    shopee_api_url: str = "https://open-api.affiliate.shopee.com.br/graphql"
+    shopee_list_type: int = 0
 
     aliexpress_mode: str = "auto"
     aliexpress_feed_path: Path | None = None
@@ -292,6 +296,10 @@ def load_config() -> AppConfig:
         shopee_affiliate_id=os.getenv("SHOPEE_AFFILIATE_ID", ""),
         shopee_sort_type=_int("SHOPEE_SORT_TYPE", 1),
         shopee_start_page=_int("SHOPEE_START_PAGE", 1),
+        shopee_app_id=os.getenv("SHOPEE_APP_ID", "").strip(),
+        shopee_app_secret=os.getenv("SHOPEE_APP_SECRET", "").strip(),
+        shopee_api_url=os.getenv("SHOPEE_API_URL", "https://open-api.affiliate.shopee.com.br/graphql").strip(),
+        shopee_list_type=_int("SHOPEE_LIST_TYPE", 0),
         aliexpress_mode=os.getenv("ALIEXPRESS_MODE", "auto").lower(),
         aliexpress_feed_path=aliexpress_feed_path,
         aliexpress_product_feed_url=os.getenv("ALIEXPRESS_PRODUCT_FEED_URL", ""),

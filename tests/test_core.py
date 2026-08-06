@@ -1155,6 +1155,97 @@ class MineSerialTest(unittest.TestCase):
         self.assertEqual(len(report.errors), 1)
 
 
+class ShopeeOpenApiTest(unittest.TestCase):
+    def test_signature_follows_documented_recipe(self):
+        import hashlib
+        from afiliado_bot.clients.shopee import shopee_signature
+
+        # A Shopee assina appId + timestamp + payload + secret, nesta ordem
+        expected = hashlib.sha256(b'app1231700000000{"query":"x"}segredo').hexdigest()
+
+        self.assertEqual(
+            shopee_signature("app123", 1700000000, '{"query":"x"}', "segredo"),
+            expected,
+        )
+
+    def test_node_becomes_record_with_affiliate_link(self):
+        from afiliado_bot.clients.shopee import _record_from_node
+
+        record = _record_from_node({
+            "itemId": 987654,
+            "productName": "Bomba de Ar Portátil Compressor",
+            "price": "69.98",
+            "priceDiscountRate": 65,
+            "imageUrl": "https://cf.shopee.com.br/file/abc",
+            "productLink": "https://shopee.com.br/product/1/2",
+            "offerLink": "https://s.shopee.com.br/19NjoyPDx",
+            "commissionRate": "0.06",
+            "sales": 7000,
+            "ratingStar": "4.8",
+            "productCatIds": [101, 202],
+        })
+
+        self.assertTrue(record["_from_api"])
+        self.assertEqual(record["offerLink"], "https://s.shopee.com.br/19NjoyPDx")
+        self.assertEqual(record["categoryId"], 101)
+        # Preco "de" reconstruido a partir da taxa de desconto: 69,98 com 65% off
+        self.assertAlmostEqual(record["price_before_discount"], 199.94, places=1)
+
+    def test_node_without_discount_has_no_original_price(self):
+        from afiliado_bot.clients.shopee import _record_from_node
+
+        record = _record_from_node({"itemId": 1, "productName": "X", "price": "50", "priceDiscountRate": 0})
+
+        self.assertIsNone(record["price_before_discount"])
+
+    def test_enabled_with_open_api_credentials(self):
+        config = AppConfig(shopee_app_id="app", shopee_app_secret="secret")
+        self.assertTrue(ShopeeClient(config).enabled)
+
+    def test_disabled_without_any_credential(self):
+        self.assertFalse(ShopeeClient(AppConfig()).enabled)
+
+    def test_api_results_keep_products_that_do_not_repeat_the_keyword(self):
+        from afiliado_bot.clients.shopee import ShopeeClient as Client
+
+        config = AppConfig(shopee_app_id="app", shopee_app_secret="secret")
+        client = Client(config)
+        # "air fryer" nao aparece em "Fritadeira Elétrica" — a busca da Shopee ja
+        # filtrou, entao o produto tem de sobreviver.
+        record = {
+            "_from_api": True,
+            "offerId": 42,
+            "offerName": "Fritadeira Elétrica sem Óleo 5L",
+            "offerLink": "https://s.shopee.com.br/abc",
+            "price": 199.0,
+            "imageUrl": "https://img/x.jpg",
+        }
+        with patch.object(Client, "_load_records", return_value=[record]):
+            products = client.fetch("air fryer", limit=5)
+
+        self.assertEqual(len(products), 1)
+        self.assertEqual(products[0].affiliate_url, "https://s.shopee.com.br/abc")
+
+    def test_feed_results_still_require_the_keyword(self):
+        from afiliado_bot.clients.shopee import ShopeeClient as Client
+
+        config = AppConfig(shopee_feed_path=Path("x.json"))
+        client = Client(config)
+        record = {
+            "offerId": 42,
+            "offerName": "Produto sem relacao",
+            "offerLink": "https://s.shopee.com.br/abc",
+            "price": 199.0,
+            # Categoria explicita: sem ela o codigo usa a propria keyword como
+            # fallback e o filtro passaria de qualquer jeito.
+            "category": "Camisetas",
+        }
+        with patch.object(Client, "_load_records", return_value=[record]):
+            products = client.fetch("air fryer", limit=5)
+
+        self.assertEqual(products, [])
+
+
 class SourceHealthTest(unittest.TestCase):
     def _storage(self, tmp):
         storage = Storage(Path(tmp) / "health.db")

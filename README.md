@@ -160,6 +160,42 @@ Para evitar ofertas fracas, o bot exige imagem por padrao e rejeita produtos com
 
 A loja em `site/index.html` separa os produtos por departamento, mostra uma sidebar com categorias detalhadas e oferece filtros por marketplace, preco minimo, preco maximo e frete gratis. Depois de qualquer mineracao, o arquivo `site/products.js` e atualizado para refletir as categorias.
 
+## Shopee (Affiliate Open API)
+
+No painel de afiliados voce gera link clicando em **Obter link** produto por
+produto, e o modal devolve algo como `https://s.shopee.com.br/19NjoyPDx`. A Open
+API faz esse mesmo trabalho de uma vez: o campo `offerLink` de cada produto ja
+vem nesse formato de afiliado, entao **nao e preciso configurar template** — o
+link sai com sua atribuicao garantida.
+
+Pegue as credenciais em **affiliate.shopee.com.br > menu lateral > Abrir API** e
+coloque no `.env`:
+
+```env
+ENABLED_SOURCES=manual,mercadolivre,shopee,amazon,aliexpress
+SHOPEE_APP_ID=seu_app_id
+SHOPEE_APP_SECRET=seu_app_secret
+# listType 0 = todas as ofertas
+# sortType 2 = maior comissao | 3 = mais vendidos
+SHOPEE_LIST_TYPE=0
+SHOPEE_SORT_TYPE=2
+```
+
+Teste sem publicar nada:
+
+```powershell
+python -m afiliado_bot shopee-test --keyword "air fryer"
+```
+
+Se aparecer **erro 10035**, a conta ainda nao tem acesso liberado a Open API —
+solicite a liberacao na propria pagina "Abrir API". A autenticacao e assinada:
+`SHA256(appId + timestamp + payload + appSecret)`, enviada no cabecalho
+`Authorization: SHA256 Credential=..., Timestamp=..., Signature=...`.
+
+O conector antigo por feed/proxy (`SHOPEE_PRODUCT_FEED_URL`, `SHOPEE_FEED_PATH`)
+continua funcionando como alternativa; a Open API tem prioridade quando o App ID
+e o Secret estiverem preenchidos.
+
 ## Vigiar a saude das lojas
 
 Uma loja pode parar de trazer produtos sem ninguem perceber: `mine --allow-errors`

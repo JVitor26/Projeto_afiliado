@@ -62,6 +62,10 @@ def main(argv: list[str] | None = None) -> int:
     amazon_test_parser.add_argument("--keyword", default="fone bluetooth")
     amazon_test_parser.add_argument("--limit", type=int, default=3)
 
+    shopee_test_parser = subparsers.add_parser("shopee-test", help="testa credenciais da Shopee Affiliate Open API")
+    shopee_test_parser.add_argument("--keyword", default="air fryer")
+    shopee_test_parser.add_argument("--limit", type=int, default=5)
+
     ml_auth_parser = subparsers.add_parser("mercadolivre-auth-url", help="gera link para autorizar o app Mercado Livre")
     ml_auth_parser.add_argument("--redirect-uri", help="mesma URL de redirect cadastrada no app Mercado Livre")
     ml_auth_parser.add_argument("--state", help="valor opcional para validar o retorno OAuth")
@@ -313,6 +317,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Produtos retornados: {len(products)}")
         for product in products[: args.limit]:
             print(f"- {product.title} | {product.currency} {product.price:.2f}")
+        return 0
+
+    if args.command == "shopee-test":
+        if not (config.shopee_app_id and config.shopee_app_secret):
+            print("Config Shopee incompleta no .env:")
+            if not config.shopee_app_id:
+                print("- SHOPEE_APP_ID")
+            if not config.shopee_app_secret:
+                print("- SHOPEE_APP_SECRET")
+            print("\nPegue os dois em affiliate.shopee.com.br > menu lateral > Abrir API.")
+            return 2
+
+        client = ShopeeClient(config)
+        try:
+            products = client.fetch(args.keyword, limit=args.limit)
+        except RuntimeError as exc:
+            print(f"Erro Shopee Open API: {exc}")
+            if "10035" in str(exc):
+                print("\nCodigo 10035 = a conta ainda nao tem acesso liberado a Open API.")
+                print("Solicite a liberacao em affiliate.shopee.com.br > Abrir API.")
+            return 2
+
+        print("Shopee Open API: OK")
+        print(f"Produtos retornados: {len(products)}")
+        for product in products:
+            commission = product.metadata.get("commission_rate")
+            extra = f" | comissao {float(commission) * 100:.0f}%" if commission else ""
+            print(f"- {product.title[:56]} | R$ {product.price:.2f}{extra}")
+            print(f"  {product.affiliate_url}")
+        if products and not any("s.shopee" in p.affiliate_url or "shope.ee" in p.affiliate_url for p in products):
+            print("\nAviso: nenhum link veio no formato de afiliado (s.shopee.com.br).")
+            print("Confira se o app tem permissao de gerar offerLink.")
         return 0
 
     if args.command == "mercadolivre-auth-url":
