@@ -340,20 +340,6 @@ jobs:
           fi
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
 
-      - name: Minerar Mais Vendidos da Amazon
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${AMAZON_PARTNER_TAG:-}" ]; then
-            echo "::warning::AMAZON_PARTNER_TAG nao configurado. Sem a tag de associado o link nao gera comissao, entao os Mais Vendidos da Amazon foram pulados. Defina a variavel em Settings > Secrets and variables > Actions > Variables."
-            exit 0
-          fi
-          python -m afiliado_bot init-db
-          # --no-publish: quem posta e o passo "Publicar oferta", que ranqueia
-          # os produtos de todas as fontes juntos.
-          python -m afiliado_bot amazon-bestsellers --no-publish --rotate || \
-            echo "::warning::Leitura dos Mais Vendidos falhou nesta execucao (Amazon costuma responder 503); segue com as demais fontes."
-
       - name: Publicar oferta
         shell: bash
         run: |
@@ -370,6 +356,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Rodizio: cada execucao minera UMA loja (ML, Amazon, Shopee, AliExpress).
+          # Ciclo curto e cada marketplace recebe so o que precisa.
           python -m afiliado_bot mine --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-20}" --allow-errors
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
           python -m afiliado_bot generate-stats

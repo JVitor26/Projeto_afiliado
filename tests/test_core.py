@@ -1427,6 +1427,105 @@ class ThrottleTest(unittest.TestCase):
         self.assertLess(chamadas_por_mes, 2000)
 
 
+class StoreRotationTest(unittest.TestCase):
+    """Uma loja por execucao, para o ciclo nao pesar."""
+
+    def _slots(self, storage, *specs):
+        from afiliado_bot.services.rotation import StoreSlot
+        from afiliado_bot.services.throttle import SourceThrottle, ThrottlePolicy
+
+        slots = []
+        for name, ready, interval in specs:
+            throttle = None
+            if interval is not None:
+                throttle = SourceThrottle(storage, name, ThrottlePolicy(interval_hours=interval))
+            slots.append(StoreSlot(name=name, label=name.title(), ready=ready, throttle=throttle))
+        return slots
+
+    def _rotation(self, tmp, *specs):
+        from afiliado_bot.services.rotation import StoreRotation
+
+        storage = Storage(Path(tmp) / "rot.db")
+        storage.init_db()
+        return storage, StoreRotation(storage, self._slots(storage, *specs))
+
+    def test_each_run_picks_the_next_store(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, rotation = self._rotation(
+                tmp, ("mercadolivre", True, 0), ("amazon", True, 0), ("shopee", True, 0)
+            )
+
+            escolhidas = [rotation.pick().chosen.name for _ in range(4)]
+
+        # Gira e volta ao inicio, em vez de sempre pegar a mesma
+        self.assertEqual(escolhidas, ["mercadolivre", "amazon", "shopee", "mercadolivre"])
+
+    def test_unconfigured_store_is_skipped_with_a_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "rot.db")
+            storage.init_db()
+            from afiliado_bot.services.rotation import StoreRotation, StoreSlot
+
+            rotation = StoreRotation(storage, [
+                StoreSlot(name="shopee", label="Shopee", ready=False, reason="sem App ID"),
+                StoreSlot(name="amazon", label="Amazon", ready=True),
+            ])
+            pick = rotation.pick()
+
+        self.assertEqual(pick.chosen.name, "amazon")
+        self.assertIn(("Shopee", "sem App ID"), pick.skipped)
+
+    def _pick_and_run(self, rotation):
+        """Escolhe e registra a execucao, como faz o comando `mine`."""
+        pick = rotation.pick()
+        if pick.chosen and pick.chosen.throttle:
+            pick.chosen.throttle.record_run(keywords_used=1, errors=0)
+        return pick
+
+    def test_store_inside_its_window_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, rotation = self._rotation(tmp, ("mercadolivre", True, 6), ("amazon", True, 0))
+
+            first = self._pick_and_run(rotation).chosen.name
+            second = self._pick_and_run(rotation).chosen.name
+            third = self._pick_and_run(rotation).chosen.name
+
+        self.assertEqual(first, "mercadolivre")
+        # O ML fechou a janela de 6h, entao a Amazon assume as seguintes
+        self.assertEqual(second, "amazon")
+        self.assertEqual(third, "amazon")
+
+    def test_nobody_ready_does_not_burn_a_turn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage, rotation = self._rotation(tmp, ("mercadolivre", True, 6), ("amazon", True, 6))
+
+            self._pick_and_run(rotation)  # ML roda e fecha a janela
+            self._pick_and_run(rotation)  # Amazon roda e fecha a dela
+            antes = storage.get_source_state("_rotation")["keyword_cursor"]
+            vazio = rotation.pick()
+            depois = storage.get_source_state("_rotation")["keyword_cursor"]
+
+        self.assertIsNone(vazio.chosen)
+        self.assertEqual(len(vazio.skipped), 2)
+        # Ninguem pronto nao pode consumir a vez de quem so esperava a janela
+        self.assertEqual(antes, depois)
+
+    def test_rotation_only_includes_enabled_sources(self):
+        from afiliado_bot.cli import build_store_rotation
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "rot.db")
+            storage.init_db()
+            config = AppConfig(
+                enabled_sources=["amazon"],
+                store_rotation=["mercadolivre", "amazon", "shopee", "aliexpress"],
+                amazon_partner_tag="67005-20",
+            )
+            rotation = build_store_rotation(config, storage)
+
+        self.assertEqual([slot.name for slot in rotation.slots], ["amazon"])
+
+
 class SourceHealthTest(unittest.TestCase):
     def _storage(self, tmp):
         storage = Storage(Path(tmp) / "health.db")

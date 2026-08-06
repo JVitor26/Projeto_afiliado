@@ -213,6 +213,41 @@ Para minerar e publicar no mesmo ciclo:
 python -m afiliado_bot amazon-bestsellers --loop
 ```
 
+## Rodizio de lojas
+
+Cada execucao minera **uma loja**, nao todas. Minerar tudo a cada ciclo deixava
+o processo longo, dava a cada marketplace muito mais chamadas do que ele precisa
+e fazia uma loja lenta atrasar as outras — ofertas e rankings nao mudam de 8 em
+8 minutos.
+
+```env
+STORE_ROTATION=mercadolivre,amazon,shopee,aliexpress
+```
+
+A cada execucao o bot pega a proxima loja da fila. Quem nao esta configurada, ou
+ainda esta dentro da propria janela de intervalo, e pulada **sem gastar a vez** —
+o cursor so anda quando alguem realmente minera.
+
+```
+Vez da loja: Mercado Livre
+  keywords desta janela: ssd, fone bluetooth, headset gamer, smartwatch, tablet
+  proxima ordem: Amazon -> Shopee -> AliExpress -> Mercado Livre
+```
+
+Fontes locais (planilha manual) nao gastam API e rodam em toda execucao.
+
+Para ver a fila e o estado de cada loja:
+
+```powershell
+python -m afiliado_bot api-quota
+```
+
+Para uma carga pontual com todas as lojas de uma vez:
+
+```powershell
+python -m afiliado_bot mine --all-stores
+```
+
 ## Limites de uso da API (Mercado Livre)
 
 O aplicativo do Mercado Livre chegou a ser **bloqueado**: o bot minerava 41

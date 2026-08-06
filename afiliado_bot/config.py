@@ -238,6 +238,9 @@ class AppConfig:
 
     webhook_urls: list[str] = field(default_factory=list)
 
+    # Ordem do rodizio de lojas: uma por execucao, em vez de todas de uma vez.
+    store_rotation: list[str] = field(default_factory=list)
+
     mine_limit_per_keyword: int = 20
     mining_parallel_keywords: int = 4
     mining_parallel_providers: int = 5
@@ -376,6 +379,7 @@ def load_config() -> AppConfig:
         whatsapp_group_api_type=os.getenv("WHATSAPP_GROUP_API_TYPE", "evolution"),
         whatsapp_group_ids=_csv("WHATSAPP_GROUP_IDS"),
         webhook_urls=_csv("SOCIAL_WEBHOOK_URLS"),
+        store_rotation=_csv("STORE_ROTATION", "mercadolivre,amazon,shopee,aliexpress"),
         mine_limit_per_keyword=_int("MINE_LIMIT_PER_KEYWORD", 20),
         mining_parallel_keywords=_int("MINING_PARALLEL_KEYWORDS", 4),
         mining_parallel_providers=_int("MINING_PARALLEL_PROVIDERS", 5),

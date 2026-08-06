@@ -44,6 +44,7 @@ from .redirect_server import serve_redirects
 from .scheduler import _sleep_until_next_cycle, run_forever
 from .scoring import ProductRanker
 from .services.mining import MiningReport, MiningService
+from .services.rotation import StoreRotation, StoreSlot
 from .services.throttle import SourceThrottle, ThrottlePolicy
 from .services.publishing import PublishingService, build_offer_message
 from .storage import Storage
@@ -164,6 +165,11 @@ def main(argv: list[str] | None = None) -> int:
         "--allow-errors",
         action="store_true",
         help="continua com codigo 0 mesmo se alguma fonte bloquear ou falhar",
+    )
+    mine_parser.add_argument(
+        "--all-stores",
+        action="store_true",
+        help="minera todas as lojas nesta execucao, ignorando o rodizio",
     )
     mine_parser.add_argument(
         "--force-mercadolivre",
@@ -722,6 +728,22 @@ def main(argv: list[str] | None = None) -> int:
         per_day = 24 / policy.interval_hours if policy.interval_hours else 24
         estimate = policy.keywords_per_run * per_day
 
+        rotation = build_store_rotation(config, storage)
+        print("RODIZIO DE LOJAS — uma por execucao")
+        if rotation.slots:
+            print(f"  ordem a partir da proxima: {' -> '.join(rotation.preview())}")
+            for slot in rotation.slots:
+                if not slot.ready:
+                    situacao = f"nao configurada ({slot.reason})"
+                elif slot.throttle:
+                    allowed, motivo = slot.throttle.check()
+                    situacao = "pronta" if allowed else motivo
+                else:
+                    situacao = "pronta"
+                print(f"    {slot.label:16} {situacao}")
+        else:
+            print("  (nenhuma loja no rodizio — confira STORE_ROTATION e ENABLED_SOURCES)")
+        print()
         print("MERCADO LIVRE — limites de uso")
         print(f"  intervalo entre janelas .... {policy.interval_hours}h  ({per_day:.0f} janelas/dia)")
         print(f"  keywords por janela ........ {policy.keywords_per_run} de {len(keywords)} (rodizio)")
@@ -833,16 +855,35 @@ def main(argv: list[str] | None = None) -> int:
         keywords = args.keywords or config.keywords
         limit_per_keyword = args.limit_per_keyword or config.mine_limit_per_keyword
 
-        # O Mercado Livre sai do lote geral: ele tem cadencia propria, rodizio de
-        # keywords e pausa automatica, porque foi o volume de chamadas daqui que
-        # bloqueou o aplicativo.
-        report = mine_without_mercadolivre(config, storage, keywords, limit_per_keyword)
-        ml_report = mine_mercadolivre_throttled(
-            config, storage, keywords, limit_per_keyword, force=args.force_mercadolivre
-        )
-        report.imported += ml_report.imported
-        report.skipped += ml_report.skipped
-        report.errors.extend(ml_report.errors)
+        if args.all_stores:
+            # Modo antigo: todas as lojas de uma vez. Util para uma carga
+            # pontual, nao para o agendamento.
+            report = mine_without_mercadolivre(config, storage, keywords, limit_per_keyword)
+            ml_report = mine_mercadolivre_throttled(
+                config, storage, keywords, limit_per_keyword, force=args.force_mercadolivre
+            )
+            report.imported += ml_report.imported
+            report.skipped += ml_report.skipped
+            report.errors.extend(ml_report.errors)
+        else:
+            # Uma loja por execucao: ciclo curto e cada marketplace recebe so o
+            # que precisa. As fontes locais nao gastam API e rodam sempre.
+            report = mine_local_sources(config, storage, keywords, limit_per_keyword)
+            rotation = build_store_rotation(config, storage)
+            pick = rotation.pick()
+
+            for label, reason in pick.skipped:
+                print(f"  {label}: pulada — {reason}")
+
+            if pick.chosen is None:
+                print("Nenhuma loja disponivel nesta execucao.")
+            else:
+                print(f"Vez da loja: {pick.chosen.label}")
+                store_report = mine_one_store(config, storage, pick.chosen, keywords, limit_per_keyword)
+                report.imported += store_report.imported
+                report.skipped += store_report.skipped
+                report.errors.extend(store_report.errors)
+                print(f"  proxima ordem: {' -> '.join(rotation.preview())}")
 
         print(f"Importados: {report.imported}")
         print(f"Ignorados: {report.skipped}")
@@ -1181,6 +1222,114 @@ def bestsellers_policy(config: AppConfig) -> ThrottlePolicy:
         max_error_streak=0,   # 503 da Amazon e comum e passageiro: nao pausar por isso
         pause_hours=0,
     )
+
+
+def build_store_rotation(config: AppConfig, storage: Storage) -> StoreRotation:
+    """Monta o rodizio na ordem de STORE_ROTATION, marcando quem esta pronto."""
+    enabled = {source.strip().lower() for source in config.enabled_sources}
+    slots: list[StoreSlot] = []
+
+    for name in config.store_rotation:
+        name = name.strip().lower()
+        if name not in enabled:
+            continue
+
+        if name == "mercadolivre":
+            ready = bool(config.mercadolivre_access_token or config.mercadolivre_refresh_token)
+            slots.append(
+                StoreSlot(
+                    name=name,
+                    label="Mercado Livre",
+                    ready=ready,
+                    throttle=SourceThrottle(storage, "mercadolivre", mercadolivre_policy(config)),
+                    reason="" if ready else "sem token OAuth",
+                )
+            )
+        elif name == "amazon":
+            ready = bool(config.amazon_partner_tag.strip())
+            slots.append(
+                StoreSlot(
+                    name=name,
+                    label="Amazon",
+                    ready=ready,
+                    throttle=SourceThrottle(storage, "amazon_bestsellers", bestsellers_policy(config)),
+                    reason="" if ready else "AMAZON_PARTNER_TAG vazio",
+                )
+            )
+        elif name == "shopee":
+            client = ShopeeClient(config)
+            slots.append(
+                StoreSlot(
+                    name=name,
+                    label="Shopee",
+                    ready=client.enabled,
+                    reason="" if client.enabled else "sem App ID/Secret nem feed",
+                )
+            )
+        elif name == "aliexpress":
+            client = AliExpressClient(config)
+            slots.append(
+                StoreSlot(
+                    name=name,
+                    label="AliExpress",
+                    ready=client.enabled,
+                    reason="" if client.enabled else "sem App Key/Secret nem feed",
+                )
+            )
+
+    return StoreRotation(storage, slots)
+
+
+def mine_one_store(
+    config: AppConfig,
+    storage: Storage,
+    slot: StoreSlot,
+    keywords: list[str],
+    limit_per_keyword: int,
+) -> MiningReport:
+    """Minera apenas a loja da vez, respeitando os limites dela."""
+    ranker = ProductRanker(config, storage.category_boosts())
+
+    if slot.name == "mercadolivre":
+        selected = slot.throttle.next_keywords(keywords) if slot.throttle else keywords
+        print(f"  keywords desta janela: {', '.join(selected)}")
+        mining = MiningService([MercadoLivreClient(config)], storage, ranker)
+        report = mining.mine_serial(
+            selected,
+            limit_per_keyword=limit_per_keyword,
+            delay_seconds=config.mercadolivre_request_delay,
+        )
+        if slot.throttle:
+            slot.throttle.record_run(keywords_used=len(selected), errors=len(report.errors))
+        return report
+
+    if slot.name == "amazon":
+        categories = config.amazon_bestsellers_categories
+        selected = slot.throttle.next_keywords(categories) if slot.throttle else categories
+        print(f"  categorias desta janela: {', '.join(selected)}")
+        mining = MiningService([AmazonBestSellersClient(config)], storage, ranker)
+        report = mining.mine_serial(
+            selected,
+            limit_per_keyword=config.amazon_bestsellers_limit,
+            delay_seconds=config.amazon_bestsellers_delay,
+        )
+        if slot.throttle:
+            slot.throttle.record_run(keywords_used=len(selected), errors=len(report.errors))
+        return report
+
+    provider = ShopeeClient(config) if slot.name == "shopee" else AliExpressClient(config)
+    mining = MiningService([provider], storage, ranker)
+    return mining.mine(keywords, limit_per_keyword=limit_per_keyword)
+
+
+def mine_local_sources(config: AppConfig, storage: Storage, keywords: list[str], limit: int) -> MiningReport:
+    """Fontes sem custo de API rodam sempre: leem arquivo local, nao a rede."""
+    enabled = {source.strip().lower() for source in config.enabled_sources}
+    manual = ManualProductClient(config)
+    if "manual" not in enabled or not manual.enabled:
+        return MiningReport()
+    ranker = ProductRanker(config, storage.category_boosts())
+    return MiningService([manual], storage, ranker).mine(keywords, limit_per_keyword=limit)
 
 
 def mine_without_mercadolivre(
