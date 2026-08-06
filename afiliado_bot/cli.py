@@ -43,7 +43,8 @@ from .posters.whatsapp_group import WhatsAppGroupPoster
 from .redirect_server import serve_redirects
 from .scheduler import _sleep_until_next_cycle, run_forever
 from .scoring import ProductRanker
-from .services.mining import MiningService
+from .services.mining import MiningReport, MiningService
+from .services.throttle import SourceThrottle, ThrottlePolicy
 from .services.publishing import PublishingService, build_offer_message
 from .storage import Storage
 
@@ -164,6 +165,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="continua com codigo 0 mesmo se alguma fonte bloquear ou falhar",
     )
+    mine_parser.add_argument(
+        "--force-mercadolivre",
+        action="store_true",
+        help="ignora a janela de intervalo do Mercado Livre nesta execucao",
+    )
 
     auto_ml_parser = subparsers.add_parser(
         "auto-mercadolivre",
@@ -254,6 +260,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="mantem o products.js atual quando o banco nao tiver produtos exportaveis",
     )
+
+    quota_parser = subparsers.add_parser(
+        "api-quota",
+        help="mostra os limites de uso da API por fonte e o consumo atual",
+    )
+    quota_parser.add_argument("--reset", action="store_true", help="zera pausa e contadores do Mercado Livre")
 
     health_parser = subparsers.add_parser(
         "check-sources",
@@ -686,6 +698,41 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Produtos importados do site: {imported}")
         return 0
 
+    if args.command == "api-quota":
+        policy = mercadolivre_policy(config)
+        throttle = SourceThrottle(storage, "mercadolivre", policy)
+
+        if args.reset:
+            storage.save_source_state(
+                "mercadolivre",
+                last_run_at=None,
+                error_streak=0,
+                paused_until=None,
+                calls_today=0,
+                calls_day=None,
+            )
+            print("Estado do Mercado Livre zerado.")
+
+        keywords = config.keywords
+        per_day = 24 / policy.interval_hours if policy.interval_hours else 24
+        estimate = policy.keywords_per_run * per_day
+
+        print("MERCADO LIVRE — limites de uso")
+        print(f"  intervalo entre janelas .... {policy.interval_hours}h  ({per_day:.0f} janelas/dia)")
+        print(f"  keywords por janela ........ {policy.keywords_per_run} de {len(keywords)} (rodizio)")
+        print(f"  teto diario ................ {policy.max_calls_per_day or 'sem teto'} chamadas")
+        print(f"  pausa apos erro ............ {policy.max_error_streak} ciclos -> {policy.pause_hours}h")
+        print(f"  intervalo entre chamadas ... {config.mercadolivre_request_delay}s")
+        print()
+        print(f"  estimativa .................. ~{estimate:.0f} chamadas/dia (~{estimate * 30:,.0f}/mes)")
+        print()
+        print("ESTADO ATUAL")
+        print(f"  {throttle.status()}")
+        proximas = throttle.next_keywords(keywords)
+        if proximas:
+            print(f"  proximas keywords: {', '.join(proximas)}")
+        return 0
+
     if args.command == "check-sources":
         expected = args.sources or configured_sources(config)
         stale = storage.stale_sources(expected, hours=args.hours)
@@ -779,10 +826,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "mine":
         keywords = args.keywords or config.keywords
-        report = mining.mine(
-            keywords,
-            limit_per_keyword=args.limit_per_keyword or config.mine_limit_per_keyword,
+        limit_per_keyword = args.limit_per_keyword or config.mine_limit_per_keyword
+
+        # O Mercado Livre sai do lote geral: ele tem cadencia propria, rodizio de
+        # keywords e pausa automatica, porque foi o volume de chamadas daqui que
+        # bloqueou o aplicativo.
+        report = mine_without_mercadolivre(config, storage, keywords, limit_per_keyword)
+        ml_report = mine_mercadolivre_throttled(
+            config, storage, keywords, limit_per_keyword, force=args.force_mercadolivre
         )
+        report.imported += ml_report.imported
+        report.skipped += ml_report.skipped
+        report.errors.extend(ml_report.errors)
+
         print(f"Importados: {report.imported}")
         print(f"Ignorados: {report.skipped}")
         if report.errors:
@@ -1099,6 +1155,86 @@ def run_provider_auto(
         "site_out": str(site_out),
         "sent": sent,
     }
+
+
+def mercadolivre_policy(config: AppConfig) -> ThrottlePolicy:
+    return ThrottlePolicy(
+        interval_hours=config.mercadolivre_interval_hours,
+        keywords_per_run=config.mercadolivre_keywords_per_run,
+        max_calls_per_day=config.mercadolivre_max_calls_per_day,
+        max_error_streak=config.mercadolivre_max_error_streak,
+        pause_hours=config.mercadolivre_pause_hours,
+    )
+
+
+def mine_without_mercadolivre(
+    config: AppConfig,
+    storage: Storage,
+    keywords: list[str],
+    limit_per_keyword: int,
+) -> MiningReport:
+    """Mineracao normal das fontes que nao tem limite de uso."""
+    enabled = {source.strip().lower() for source in config.enabled_sources}
+    providers = []
+
+    manual = ManualProductClient(config)
+    if "manual" in enabled and manual.enabled:
+        providers.append(manual)
+    shopee = ShopeeClient(config)
+    if "shopee" in enabled and shopee.enabled:
+        providers.append(shopee)
+    amazon = AmazonClient(config)
+    if "amazon" in enabled and amazon.enabled:
+        providers.append(amazon)
+    aliexpress = AliExpressClient(config)
+    if "aliexpress" in enabled and aliexpress.enabled:
+        providers.append(aliexpress)
+
+    if not providers:
+        return MiningReport()
+
+    ranker = ProductRanker(config, storage.category_boosts())
+    return MiningService(providers, storage, ranker).mine(keywords, limit_per_keyword=limit_per_keyword)
+
+
+def mine_mercadolivre_throttled(
+    config: AppConfig,
+    storage: Storage,
+    keywords: list[str],
+    limit_per_keyword: int,
+    *,
+    force: bool = False,
+) -> MiningReport:
+    """Minera o Mercado Livre dentro dos limites de uso.
+
+    O aplicativo foi bloqueado por volume de chamadas. Aqui a fonte roda em
+    janelas espacadas, com um punhado de keywords por vez e em serie, e entra em
+    pausa sozinha se comecar a acumular erro.
+    """
+    enabled = {source.strip().lower() for source in config.enabled_sources}
+    if "mercadolivre" not in enabled:
+        return MiningReport()
+
+    throttle = SourceThrottle(storage, "mercadolivre", mercadolivre_policy(config))
+    allowed, reason = throttle.check()
+    if not allowed and not force:
+        print(f"Mercado Livre: pulado — {reason}")
+        return MiningReport()
+
+    selected = throttle.next_keywords(keywords)
+    if not selected:
+        return MiningReport()
+
+    print(f"Mercado Livre: {len(selected)} keywords nesta janela ({', '.join(selected)})")
+    ranker = ProductRanker(config, storage.category_boosts())
+    mining = MiningService([MercadoLivreClient(config)], storage, ranker)
+    report = mining.mine_serial(
+        selected,
+        limit_per_keyword=limit_per_keyword,
+        delay_seconds=config.mercadolivre_request_delay,
+    )
+    throttle.record_run(keywords_used=len(selected), errors=len(report.errors))
+    return report
 
 
 def configured_sources(config: AppConfig) -> list[str]:

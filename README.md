@@ -213,6 +213,38 @@ Para minerar e publicar no mesmo ciclo:
 python -m afiliado_bot amazon-bestsellers --loop
 ```
 
+## Limites de uso da API (Mercado Livre)
+
+O aplicativo do Mercado Livre chegou a ser **bloqueado**: o bot minerava 41
+keywords a cada 8 minutos, cerca de **221 mil chamadas por mes**, so de leitura.
+Isso bate com dois motivos de bloqueio da documentacao oficial —
+`EXCESSIVE_API_CALL` e `INTEGRATORS_DATA_INFRACTION`.
+
+Para nao repetir o padrao, o Mercado Livre saiu do lote geral de mineracao e
+passou a ter controle proprio:
+
+| Controle | Padrao | Para que serve |
+|---|---|---|
+| Intervalo entre janelas | 6h | O `mine` roda de 8 em 8 min, mas o ML so entra 4x/dia |
+| Keywords por janela | 5 de 41 | Rodizio: cobre a lista toda ao longo dos ciclos |
+| Teto diario | 120 chamadas | Trava de seguranca |
+| Pausa apos erro | 3 ciclos -> 12h | A doc avisa que acumulo de erro causa bloqueio |
+| Intervalo entre chamadas | 2s | Evita rajada |
+
+Resultado: **~600 chamadas/mes** em vez de ~221 mil.
+
+Para inspecionar o consumo e o que vem na proxima janela:
+
+```powershell
+python -m afiliado_bot api-quota
+python -m afiliado_bot api-quota --reset          # zera pausa e contadores
+python -m afiliado_bot mine --force-mercadolivre  # ignora a janela uma vez
+```
+
+O motivo `INTEGRATORS_DATA_INFRACTION` (consumo apenas de leitura) nao e algo que
+codigo resolva — e a natureza de um bot de afiliados. Se o bloqueio for esse,
+trate com o suporte do Mercado Livre antes de reativar.
+
 ## Vigiar a saude das lojas
 
 Uma loja pode parar de trazer produtos sem ninguem perceber: `mine --allow-errors`

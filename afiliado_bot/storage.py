@@ -131,6 +131,19 @@ class Storage:
                     foreign key(product_id) references products(id)
                 );
 
+                -- Controle de uso por fonte: cadencia, rodizio de keywords e
+                -- pausa automatica. Existe para nao repetir o padrao que fez o
+                -- Mercado Livre bloquear o aplicativo.
+                create table if not exists source_state (
+                    source text primary key,
+                    last_run_at text,
+                    keyword_cursor integer not null default 0,
+                    error_streak integer not null default 0,
+                    paused_until text,
+                    calls_today integer not null default 0,
+                    calls_day text
+                );
+
                 create table if not exists events (
                     id integer primary key autoincrement,
                     product_id integer not null,
@@ -142,6 +155,43 @@ class Storage:
                     foreign key(product_id) references products(id)
                 );
                 """
+            )
+
+    def get_source_state(self, source: str) -> dict[str, Any]:
+        with self.session() as conn:
+            row = conn.execute("select * from source_state where source = ?", (source,)).fetchone()
+        if row is None:
+            return {
+                "source": source,
+                "last_run_at": None,
+                "keyword_cursor": 0,
+                "error_streak": 0,
+                "paused_until": None,
+                "calls_today": 0,
+                "calls_day": None,
+            }
+        return dict(row)
+
+    def save_source_state(self, source: str, **fields: Any) -> None:
+        if not fields:
+            return
+        current = self.get_source_state(source)
+        current.update(fields)
+        with self.session() as conn:
+            conn.execute(
+                """
+                insert into source_state
+                    (source, last_run_at, keyword_cursor, error_streak, paused_until, calls_today, calls_day)
+                values (:source, :last_run_at, :keyword_cursor, :error_streak, :paused_until, :calls_today, :calls_day)
+                on conflict(source) do update set
+                    last_run_at = excluded.last_run_at,
+                    keyword_cursor = excluded.keyword_cursor,
+                    error_streak = excluded.error_streak,
+                    paused_until = excluded.paused_until,
+                    calls_today = excluded.calls_today,
+                    calls_day = excluded.calls_day
+                """,
+                current,
             )
 
     def source_freshness(self) -> dict[str, str]:

@@ -149,6 +149,14 @@ class AppConfig:
     mercadolivre_affiliate_template: str = ""
     mercadolivre_affiliate_id: str = ""
     mercadolivre_min_discount: int = 10
+    # Limites de uso da API do Mercado Livre. O app foi bloqueado por volume de
+    # chamadas; estes padroes derrubam ~221 mil/mes para ~600.
+    mercadolivre_interval_hours: float = 6.0
+    mercadolivre_keywords_per_run: int = 5
+    mercadolivre_max_calls_per_day: int = 120
+    mercadolivre_max_error_streak: int = 3
+    mercadolivre_pause_hours: float = 12.0
+    mercadolivre_request_delay: float = 2.0
 
     shopee_feed_path: Path | None = None
     shopee_product_feed_url: str = ""
@@ -289,6 +297,12 @@ def load_config() -> AppConfig:
 
         mercadolivre_affiliate_id=os.getenv("MERCADOLIVRE_AFFILIATE_ID", ""),
         mercadolivre_min_discount=_int("MERCADOLIVRE_MIN_DISCOUNT", 10),
+        mercadolivre_interval_hours=_float("MERCADOLIVRE_INTERVAL_HOURS", 6.0),
+        mercadolivre_keywords_per_run=_int("MERCADOLIVRE_KEYWORDS_PER_RUN", 5),
+        mercadolivre_max_calls_per_day=_int("MERCADOLIVRE_MAX_CALLS_PER_DAY", 120),
+        mercadolivre_max_error_streak=_int("MERCADOLIVRE_MAX_ERROR_STREAK", 3),
+        mercadolivre_pause_hours=_float("MERCADOLIVRE_PAUSE_HOURS", 12.0),
+        mercadolivre_request_delay=_float("MERCADOLIVRE_REQUEST_DELAY", 2.0),
         shopee_feed_path=shopee_feed_path,
         shopee_product_feed_url=os.getenv("SHOPEE_PRODUCT_FEED_URL", ""),
         shopee_authorization_header=os.getenv("SHOPEE_AUTHORIZATION_HEADER", ""),

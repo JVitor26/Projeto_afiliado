@@ -1334,6 +1334,99 @@ class ShopeePanelTest(unittest.TestCase):
         self.assertIn("pip install playwright", str(ctx.exception))
 
 
+class ThrottleTest(unittest.TestCase):
+    """Limites que existem porque o app do Mercado Livre foi bloqueado por volume."""
+
+    def _throttle(self, tmp, **policy_kwargs):
+        from afiliado_bot.services.throttle import SourceThrottle, ThrottlePolicy
+
+        storage = Storage(Path(tmp) / "throttle.db")
+        storage.init_db()
+        policy = ThrottlePolicy(**policy_kwargs)
+        return storage, SourceThrottle(storage, "mercadolivre", policy)
+
+    def test_first_run_is_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp)
+            allowed, _ = throttle.check()
+        self.assertTrue(allowed)
+
+    def test_second_run_waits_for_the_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp, interval_hours=6)
+            throttle.record_run(keywords_used=5, errors=0)
+
+            allowed, reason = throttle.check()
+
+        self.assertFalse(allowed)
+        self.assertIn("janela", reason)
+
+    def test_keywords_rotate_so_the_whole_list_gets_covered(self):
+        keywords = ["a", "b", "c", "d", "e", "f", "g"]
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp, keywords_per_run=3)
+
+            first = throttle.next_keywords(keywords)
+            throttle.record_run(keywords_used=len(first), errors=0)
+            second = throttle.next_keywords(keywords)
+            throttle.record_run(keywords_used=len(second), errors=0)
+            third = throttle.next_keywords(keywords)
+
+        self.assertEqual(first, ["a", "b", "c"])
+        self.assertEqual(second, ["d", "e", "f"])
+        # Da a volta na lista em vez de parar no fim
+        self.assertEqual(third, ["g", "a", "b"])
+
+    def test_short_list_is_used_whole(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp, keywords_per_run=10)
+            self.assertEqual(throttle.next_keywords(["a", "b"]), ["a", "b"])
+
+    def test_daily_cap_blocks_further_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp, interval_hours=0, max_calls_per_day=10)
+            throttle.record_run(keywords_used=10, errors=0)
+
+            allowed, reason = throttle.check()
+
+        self.assertFalse(allowed)
+        self.assertIn("teto diario", reason)
+
+    def test_repeated_errors_trigger_an_automatic_pause(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, throttle = self._throttle(tmp, interval_hours=0, max_error_streak=3, pause_hours=12)
+            # A doc do Mercado Livre avisa que acumulo de erro leva a bloqueio
+            for _ in range(3):
+                throttle.record_run(keywords_used=1, errors=1)
+
+            allowed, reason = throttle.check()
+
+        self.assertFalse(allowed)
+        self.assertIn("pausa", reason)
+
+    def test_success_clears_the_error_streak(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage, throttle = self._throttle(tmp, interval_hours=0, max_error_streak=3)
+            throttle.record_run(keywords_used=1, errors=1)
+            throttle.record_run(keywords_used=1, errors=0)
+
+            state = storage.get_source_state("mercadolivre")
+            allowed, _ = throttle.check()
+
+        self.assertEqual(state["error_streak"], 0)
+        self.assertTrue(allowed)
+
+    def test_configured_defaults_stay_far_below_the_old_volume(self):
+        from afiliado_bot.cli import mercadolivre_policy
+
+        policy = mercadolivre_policy(AppConfig())
+        janelas_por_dia = 24 / policy.interval_hours
+        chamadas_por_mes = policy.keywords_per_run * janelas_por_dia * 30
+
+        # O padrao antigo (41 keywords a cada 8 min) dava ~221 mil/mes
+        self.assertLess(chamadas_por_mes, 2000)
+
+
 class SourceHealthTest(unittest.TestCase):
     def _storage(self, tmp):
         storage = Storage(Path(tmp) / "health.db")
