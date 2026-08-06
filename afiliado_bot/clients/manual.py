@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from afiliado_bot.affiliates import apply_affiliate_template
+from afiliado_bot.affiliates import amazon_affiliate_url, apply_affiliate_template
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
@@ -306,6 +306,16 @@ def _normalize_source(source: str, url: str) -> str:
 
 def _apply_source_template(source: str, url: str, external_id: str, config: AppConfig) -> str:
     if source == "amazon":
+        # Template configurado manda: e escolha explicita de quem configurou.
+        # Sem template, montamos o link canonico a partir do ASIN — antes esse
+        # caso devolvia a URL crua, ou seja, link sem tag e sem comissao (que e
+        # o padrao no GitHub Actions, onde a variable costuma nao existir).
+        if not config.amazon_affiliate_template.strip() and external_id.strip() and config.amazon_partner_tag.strip():
+            return amazon_affiliate_url(
+                external_id,
+                config.amazon_partner_tag,
+                marketplace=config.amazon_marketplace,
+            )
         return apply_affiliate_template(
             config.amazon_affiliate_template,
             url,

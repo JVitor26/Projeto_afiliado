@@ -3,6 +3,19 @@ from __future__ import annotations
 from urllib.parse import quote
 
 
+def amazon_affiliate_url(asin: str, partner_tag: str, *, marketplace: str = "www.amazon.com.br") -> str:
+    """Monta o link de associado da Amazon no mesmo formato do SiteStripe.
+
+    Preferir esta funcao a um template com ``{url}``: montar o link canonico a
+    partir do ASIN garante que a tag sempre entre, sem depender de o link
+    original ja ter (ou nao) query string.
+    """
+    tag = partner_tag.strip()
+    if not asin.strip() or not tag:
+        raise ValueError("asin e partner_tag sao obrigatorios para o link de afiliado Amazon")
+    return f"https://{marketplace}/dp/{asin.strip()}?tag={tag}&linkCode=ll1&language=pt_BR&ref_=as_li_ss_tl"
+
+
 def apply_affiliate_template(
     template: str | None,
     url: str,

@@ -20,6 +20,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from afiliado_bot.affiliates import amazon_affiliate_url
 from afiliado_bot.config import AppConfig
 from afiliado_bot.models import Product
 
@@ -207,12 +208,9 @@ class AmazonBestSellersClient:
         return products
 
 
-def build_affiliate_url(asin: str, partner_tag: str, *, marketplace: str = "www.amazon.com.br") -> str:
-    """Monta o link de associado no mesmo formato do SiteStripe."""
-    tag = partner_tag.strip()
-    if not tag:
-        raise ValueError("partner_tag obrigatorio para montar link de afiliado Amazon")
-    return f"https://{marketplace}/dp/{asin}?tag={tag}&linkCode=ll1&language=pt_BR&ref_=as_li_ss_tl"
+# Mantido como alias: o formato do link mora em afiliado_bot.affiliates, usado
+# tambem pelo caminho de link colado a mao (link-offer).
+build_affiliate_url = amazon_affiliate_url
 
 
 def _clean(match: re.Match[str] | None) -> str:

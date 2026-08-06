@@ -1055,6 +1055,28 @@ class AmazonBestSellersTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_affiliate_url("B0BSVN58JW", "")
 
+    def test_pasted_link_gets_tag_even_without_template(self):
+        from afiliado_bot.clients.manual import _apply_source_template
+
+        # Cenario do GitHub Actions: AMAZON_AFFILIATE_TEMPLATE nao configurado.
+        config = AppConfig(amazon_partner_tag="67005-20", amazon_affiliate_template="")
+        link = _apply_source_template(
+            "amazon",
+            "https://www.amazon.com.br/dp/B0BSVN58JW/ref=zg_bs?psc=1",
+            "B0BSVN58JW",
+            config,
+        )
+
+        self.assertIn("tag=67005-20", link)
+
+    def test_pasted_link_without_asin_falls_back_to_template(self):
+        from afiliado_bot.clients.manual import _apply_source_template
+
+        config = AppConfig(amazon_partner_tag="67005-20", amazon_affiliate_template="{url}&tag={affiliate_id}")
+        link = _apply_source_template("amazon", "https://amzn.to/4c8dAfs?x=1", "", config)
+
+        self.assertIn("tag=67005-20", link)
+
     def test_offer_message_shows_bestseller_rank(self):
         product = Product(
             source="amazon",

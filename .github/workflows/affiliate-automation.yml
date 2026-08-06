@@ -53,6 +53,10 @@ jobs:
       AMAZON_CREATORS_CREDENTIAL_SECRET: ${{ secrets.AMAZON_CREATORS_CREDENTIAL_SECRET }}
       AMAZON_ACCESS_KEY: ${{ secrets.AMAZON_ACCESS_KEY }}
       AMAZON_SECRET_KEY: ${{ secrets.AMAZON_SECRET_KEY }}
+      # A tag de associado nao e sigilosa (ela aparece em todo link publicado),
+      # mas aceitamos como secret ou como variable para nao depender de onde foi
+      # cadastrada. O passo abaixo so sobrescreve se a variable estiver preenchida.
+      AMAZON_PARTNER_TAG: ${{ secrets.AMAZON_PARTNER_TAG }}
       ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
       ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
       SOCIAL_WEBHOOK_URLS: ${{ secrets.SOCIAL_WEBHOOK_URLS }}
