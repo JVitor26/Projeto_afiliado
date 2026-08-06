@@ -230,6 +230,15 @@ def main(argv: list[str] | None = None) -> int:
         help="mantem o products.js atual quando o banco nao tiver produtos exportaveis",
     )
 
+    purge_parser = subparsers.add_parser(
+        "purge-old",
+        help="remove produtos antigos (oferta velha = preco errado e link morto)",
+    )
+    purge_parser.add_argument("--days", type=int, default=60, help="idade maxima em dias (padrao: 60)")
+    purge_parser.add_argument("--dry-run", action="store_true", help="so mostra quanto seria removido")
+    purge_parser.add_argument("--site-out", default=str(BASE_DIR / "site" / "products.js"))
+    purge_parser.add_argument("--site-limit", type=int, default=120)
+
     subparsers.add_parser("stats", help="mostra resumo do banco")
 
     gen_stats_parser = subparsers.add_parser("generate-stats", help="gera site/stats.js com métricas do banco")
@@ -558,6 +567,20 @@ def main(argv: list[str] | None = None) -> int:
             only_if_empty=args.only_if_empty,
         )
         print(f"Produtos importados do site: {imported}")
+        return 0
+
+    if args.command == "purge-old":
+        removed = storage.purge_products_older_than(days=args.days, dry_run=args.dry_run)
+        verb = "Seriam removidos" if args.dry_run else "Removidos"
+        print(f"Corte: produtos nao vistos ha mais de {args.days} dias")
+        print(f"{verb}: {removed['products']} produtos, {removed['posts']} posts, {removed['events']} eventos")
+        print(f"Restantes no banco: {storage.stats().get('products', 0)}")
+        if not args.dry_run and removed["products"]:
+            out_path = Path(args.site_out)
+            if not out_path.is_absolute():
+                out_path = BASE_DIR / out_path
+            export_store_products(storage, out_path, limit=args.site_limit)
+            print(f"Site atualizado: {out_path}")
         return 0
 
     if args.command == "stats":

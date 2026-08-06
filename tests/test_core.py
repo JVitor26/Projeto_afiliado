@@ -1010,7 +1010,7 @@ class AmazonBestSellersTest(unittest.TestCase):
         self.assertAlmostEqual(first.price, 17.89)
         self.assertAlmostEqual(first.rating, 4.7)
         self.assertEqual(first.sold_quantity, 32157)
-        self.assertEqual(first.category, "Eletronicos")
+        self.assertEqual(first.category, "Eletrônicos")
         self.assertEqual(first.metadata["bestseller_rank"], 1)
         self.assertEqual(products[1].metadata["bestseller_rank"], 2)
 

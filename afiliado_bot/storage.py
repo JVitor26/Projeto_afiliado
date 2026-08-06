@@ -144,6 +144,30 @@ class Storage:
                 """
             )
 
+    def purge_products_older_than(self, *, days: int, dry_run: bool = False) -> dict[str, int]:
+        """Remove produtos cujo ultimo avistamento e anterior ao corte.
+
+        Oferta velha e link morto: preco desatualizado, produto fora de estoque.
+        Remove tambem posts e eventos ligados a esses produtos, para nao deixar
+        linhas orfas apontando para ids que nao existem mais.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat()
+        with self.session() as conn:
+            ids = [row[0] for row in conn.execute("select id from products where last_seen < ?", (cutoff,))]
+            if not ids:
+                return {"products": 0, "posts": 0, "events": 0}
+
+            placeholders = ",".join("?" * len(ids))
+            posts = conn.execute(f"select count(*) from posts where product_id in ({placeholders})", ids).fetchone()[0]
+            events = conn.execute(f"select count(*) from events where product_id in ({placeholders})", ids).fetchone()[0]
+
+            if not dry_run:
+                conn.execute(f"delete from posts where product_id in ({placeholders})", ids)
+                conn.execute(f"delete from events where product_id in ({placeholders})", ids)
+                conn.execute(f"delete from products where id in ({placeholders})", ids)
+
+        return {"products": len(ids), "posts": posts, "events": events}
+
     def upsert_product(self, product: Product) -> int:
         now = utc_now_iso()
         metadata_json = json.dumps(product.metadata, ensure_ascii=False, sort_keys=True)

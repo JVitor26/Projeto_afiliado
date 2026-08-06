@@ -24,7 +24,7 @@ _DEPARTMENT_GROUPS = [
         ),
     ),
     (
-        "Eletrodomesticos",
+        "Eletrodomésticos",
         (
             "geladeira", "micro-ondas", "microondas", "maquina de lavar",
             "máquina de lavar", "aspirador", "ventilador", "climatizador",
@@ -110,6 +110,8 @@ def export_store_products(
                 "soldQuantity": product.sold_quantity,
                 "freeShipping": product.free_shipping,
                 "discountPercent": product.discount_percent,
+                "bestsellerRank": product.metadata.get("bestseller_rank"),
+                "bestsellerCategory": product.metadata.get("bestseller_category"),
                 "commissionRate": product.metadata.get("commission_rate"),
                 "offerType": product.metadata.get("offer_type"),
                 "periodEndTime": product.metadata.get("period_end_time"),

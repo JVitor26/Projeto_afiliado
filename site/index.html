@@ -1,245 +1,194 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PromoLink Brasil | As melhores ofertas do Brasil</title>
-    <meta name="description" content="Ofertas imperdíveis do Mercado Livre, Amazon, AliExpress e Shopee. Descontos reais, atualizados a cada 8 minutos.">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080B">
+  <title>PromoLink Brasil | Ofertas selecionadas dos maiores marketplaces</title>
+  <meta name="description" content="Ofertas reais da Amazon, Mercado Livre, Shopee e AliExpress. Curadoria automática por categoria, atualizada várias vezes ao dia.">
 
-    <!-- Open Graph — preview ao compartilhar no WhatsApp / Instagram / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="PromoLink Brasil">
-    <meta property="og:title" content="🔥 PromoLink Brasil — As melhores ofertas em tempo real">
-    <meta property="og:description" content="Ofertas do Mercado Livre, Amazon, AliExpress e Shopee com descontos reais. Atualizadas a cada 8 minutos, 100% grátis.">
-    <meta property="og:image" content="https://jvitor26.github.io/Projeto_afiliado/og-image.svg">
-    <meta property="og:url" content="https://jvitor26.github.io/Projeto_afiliado">
-    <meta property="og:locale" content="pt_BR">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="PromoLink Brasil">
+  <meta property="og:title" content="PromoLink Brasil — Ofertas selecionadas dos maiores marketplaces">
+  <meta property="og:description" content="Amazon, Mercado Livre, Shopee e AliExpress. Curadoria automática por categoria, atualizada várias vezes ao dia.">
+  <meta property="og:image" content="https://jvitor26.github.io/Projeto_afiliado/og-image.svg">
+  <meta property="og:url" content="https://jvitor26.github.io/Projeto_afiliado">
+  <meta property="og:locale" content="pt_BR">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PromoLink Brasil — Ofertas em tempo real">
+  <meta name="twitter:description" content="Amazon, Mercado Livre, Shopee e AliExpress com curadoria automática.">
+  <meta name="twitter:image" content="https://jvitor26.github.io/Projeto_afiliado/og-image.svg">
+  <link rel="canonical" href="https://jvitor26.github.io/Projeto_afiliado">
 
-    <!-- Twitter / X Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🔥 PromoLink Brasil — Ofertas em tempo real">
-    <meta name="twitter:description" content="ML, Amazon, AliExpress e Shopee. Descontos reais, atualizados a cada 8 min.">
-    <meta name="twitter:image" content="https://jvitor26.github.io/Projeto_afiliado/og-image.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
 
-    <!-- Canonical -->
-    <link rel="canonical" href="https://jvitor26.github.io/Projeto_afiliado">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-
-    <!-- ══ TELEGRAM CTA BANNER ════════════════════════════════ -->
-    <div class="tg-banner" id="tgBanner" role="banner">
-      <div class="tg-banner-inner">
-        <svg class="tg-icon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+<!-- ══════════ SIDEBAR ══════════ -->
+<aside class="sidebar" id="sidebar" aria-label="Navegação por categorias">
+  <div class="sidebar-head">
+    <a class="logo" href="./" aria-label="PromoLink Brasil — início">
+      <span class="logo-mark" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="lgTag" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#FFF0C4"/><stop offset=".5" stop-color="#E5C77E"/><stop offset="1" stop-color="#C9A227"/>
+            </linearGradient>
+          </defs>
+          <!-- Etiqueta de preço: o símbolo da marca -->
+          <path d="M16.9 3H7a4 4 0 0 0-4 4v9.9a4 4 0 0 0 1.17 2.83l9.1 9.1a4 4 0 0 0 5.66 0l7.9-7.9a4 4 0 0 0 0-5.66l-9.1-9.1A4 4 0 0 0 16.9 3Z" fill="url(#lgTag)"/>
+          <circle cx="10.4" cy="10.4" r="2.5" fill="#16130C"/>
+          <path d="M15.5 21.5 22 15" stroke="#16130C" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
         </svg>
-        <span class="tg-banner-text">
-          <strong>Receba as ofertas no Telegram</strong>
-          <span class="tg-banner-sub"> — grátis, sem spam</span>
-        </span>
-        <a class="tg-banner-btn" href="https://t.me/PromoLinkBrasil99" target="_blank" rel="noopener noreferrer" id="tgJoinBtn">
-          Entrar grátis →
-        </a>
-        <button class="tg-banner-close" id="tgBannerClose" type="button" aria-label="Fechar">×</button>
-      </div>
+      </span>
+      <span class="logo-word">
+        <span class="logo-top">PromoLink</span>
+        <span class="logo-bottom">Brasil</span>
+      </span>
+    </a>
+  </div>
+
+  <div class="sidebar-scroll">
+    <nav class="nav-group" aria-label="Categorias">
+      <p class="nav-label">Categorias</p>
+      <div id="categoryNav"></div>
+    </nav>
+
+    <nav class="nav-group" aria-label="Lojas">
+      <p class="nav-label">Lojas</p>
+      <div id="storeNav"></div>
+    </nav>
+  </div>
+
+  <div class="sidebar-foot">
+    <a class="tg-cta" href="https://t.me/PromoLinkBrasil99" target="_blank" rel="noopener noreferrer">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+      </svg>
+      <span class="tg-cta-txt">
+        <strong>Ofertas no Telegram</strong>
+        <span>Grátis, sem spam</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<!-- ══════════ CONTEÚDO ══════════ -->
+<div class="shell">
+
+  <header class="topbar">
+    <button class="burger" id="burger" type="button" aria-label="Abrir categorias" aria-expanded="false" aria-controls="sidebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+
+    <label class="search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input id="searchInput" type="search" placeholder="Buscar produto, marca ou categoria…" autocomplete="off" aria-label="Buscar">
+    </label>
+
+    <div class="topbar-actions">
+      <button class="icon-btn" id="favBtn" type="button" aria-pressed="false">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span>Favoritos</span>
+        <span class="fav-count" id="favCount">0</span>
+      </button>
     </div>
+  </header>
 
-    <!-- ══ TOPBAR ══════════════════════════════════════════════ -->
-    <header class="topbar">
-      <a class="brand" href="#catalogo" aria-label="PromoLink Brasil">
-        <div class="brand-logo">
-          <span class="bl-promo">Promo</span><span class="bl-link">Link</span>
-          <div class="bl-row2">
-            <span class="bl-brasil">BRASIL</span>
-            <span class="bl-tag" aria-hidden="true">
-              <svg viewBox="0 0 22 22" width="18" height="18" fill="none">
-                <path d="M13.5 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5L13.5 2z" fill="#FFB800" stroke="#E8A000" stroke-width="1"/>
-                <path d="M13.5 2v5.5H18" stroke="#E8A000" stroke-width="1" stroke-linejoin="round"/>
-                <circle cx="9" cy="12" r="1.5" fill="#E8321E"/>
-                <path d="M8 16h5M9.5 13.5l3 2" stroke="#1a0a00" stroke-width="0.8" stroke-linecap="round"/>
-              </svg>
-            </span>
-          </div>
+  <main class="content">
+
+    <section class="hero">
+      <span class="hero-tag"><span class="pulse"></span> Atualizado automaticamente</span>
+      <h1>Ofertas <em>selecionadas</em><br>dos maiores marketplaces</h1>
+      <p>Um robô lê os campeões de venda e as maiores quedas de preço da Amazon, Mercado Livre, Shopee e AliExpress — e publica só o que vale a pena.</p>
+      <div class="hero-stats">
+        <div class="stat"><strong id="statTotal">0</strong><span>Ofertas</span></div>
+        <div class="stat"><strong id="statStores">0</strong><span>Lojas</span></div>
+        <div class="stat"><strong id="statCats">0</strong><span>Categorias</span></div>
+        <div class="stat"><strong id="statHighlight">—</strong><span id="statHighlightLabel">Destaque</span></div>
+      </div>
+    </section>
+
+    <section id="railSection" hidden>
+      <div class="section-head">
+        <div>
+          <h2 id="railTitle">Destaques</h2>
+          <p id="railSubtitle">Os melhores da vitrine agora</p>
         </div>
-      </a>
+      </div>
+      <div class="grid is-rail" id="railGrid"></div>
+    </section>
 
-      <label class="search-bar" aria-label="Buscar produtos">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+    <section id="catalog" class="catalog">
+      <div class="section-head">
+        <div>
+          <h2 id="catalogTitle">Todas as ofertas</h2>
+          <p id="catalogSubtitle">Explore por categoria na barra lateral</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="field">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+          <select id="sortSelect" aria-label="Ordenar">
+            <option value="score">Mais relevantes</option>
+            <option value="rank">Mais vendidos</option>
+            <option value="discount">Maior desconto</option>
+            <option value="priceAsc">Menor preço</option>
+            <option value="priceDesc">Maior preço</option>
+            <option value="rating">Melhor avaliados</option>
+          </select>
+        </label>
+
+        <div class="field">
+          <input id="minPrice" type="number" min="0" inputmode="decimal" placeholder="R$ mín" aria-label="Preço mínimo">
+          <span class="dash">—</span>
+          <input id="maxPrice" type="number" min="0" inputmode="decimal" placeholder="R$ máx" aria-label="Preço máximo">
+        </div>
+
+        <label class="field check">
+          <input id="freeShipping" type="checkbox">
+          <span>Frete grátis</span>
+        </label>
+
+        <div class="toolbar-end">
+          <span class="result-count" id="resultCount">0 produtos</span>
+          <button class="btn-ghost" id="clearFilters" type="button">Limpar</button>
+        </div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+      <div class="empty" id="empty" hidden>
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <input id="searchInput" type="search" placeholder="Buscar produto, marca ou categoria…" autocomplete="off">
-      </label>
-
-      <nav class="topbar-nav">
-        <a class="nav-wpp" href="https://whatsapp.com/channel/0029Vb6G99PK0IBmcPVy8s2w" target="_blank" rel="noopener noreferrer" aria-label="Canal WhatsApp">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          <span>WhatsApp</span>
-        </a>
-        <button class="nav-fav" id="favoritesButton" type="button" aria-label="Favoritos">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <span id="favoriteCount">0</span>
-        </button>
-      </nav>
-    </header>
-
-    <main>
-
-      <!-- ══ HERO STRIP ═══════════════════════════════════════ -->
-      <div class="hero-strip">
-        <div class="hero-text">
-          <h1>🔥 As melhores ofertas do Brasil</h1>
-          <p>ML · Amazon · AliExpress · Shopee — atualizadas a cada 8 minutos</p>
-        </div>
-        <div class="hero-metrics">
-          <div class="hm-item"><strong id="metricProducts">0</strong><span>ofertas</span></div>
-          <div class="hm-item"><strong id="metricDiscount">0%</strong><span>max desconto</span></div>
-          <div class="hm-item"><strong id="metricShipping">0</strong><span>frete grátis</span></div>
-          <div class="hm-item"><strong id="metricSources">0</strong><span>lojas</span></div>
-        </div>
+        <h3>Nenhuma oferta encontrada</h3>
+        <p>Tente outra categoria ou limpe os filtros. A vitrine é atualizada automaticamente ao longo do dia.</p>
       </div>
+    </section>
 
-      <!-- ══ OFERTAS QUENTES ══════════════════════════════════ -->
-      <section class="hot-section" id="dailyDealsSection" hidden aria-label="Ofertas quentes">
-        <div class="hot-header">
-          <div class="hot-badge">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2Z"/></svg>
-            OFERTAS QUENTES
-          </div>
-          <span class="hot-sub">Maiores descontos agora</span>
-        </div>
-        <div class="hot-grid" id="dealsGrid"></div>
-      </section>
+  </main>
+</div>
 
-      <!-- ══ CATÁLOGO ══════════════════════════════════════════ -->
-      <section class="catalog" id="catalogo">
+<!-- ══════════ DRAWER ══════════ -->
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Detalhes da oferta">
+  <button class="drawer-close" id="drawerClose" type="button" aria-label="Fechar">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+  <div id="drawerContent"></div>
+</aside>
 
-        <!-- Filtro por marketplace -->
-        <div class="source-bar" id="sourceFilters" role="group" aria-label="Filtrar por marketplace"></div>
-
-        <!-- Categorias -->
-        <div class="category-bar" id="categoryRail" role="group" aria-label="Categorias"></div>
-
-        <!-- Toolbar -->
-        <div class="catalog-toolbar">
-          <label class="toolbar-sort">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
-            <select id="sortSelect">
-              <option value="score">Melhores ofertas</option>
-              <option value="discount">Maior desconto</option>
-              <option value="priceAsc">Menor preço</option>
-              <option value="priceDesc">Maior preço</option>
-            </select>
-          </label>
-
-          <div class="price-row-filter">
-            <input id="minPriceInput" type="number" min="0" inputmode="decimal" placeholder="R$ mín.">
-            <span>—</span>
-            <input id="maxPriceInput" type="number" min="0" inputmode="decimal" placeholder="R$ máx.">
-          </div>
-
-          <label class="shipping-check">
-            <input id="freeShippingOnly" type="checkbox">
-            <span>Frete grátis</span>
-          </label>
-
-          <div class="toolbar-results">
-            <span id="resultCount">0 produtos</span>
-            <button id="clearFilters" type="button" class="btn-clear">Limpar</button>
-          </div>
-        </div>
-
-        <!-- Grid -->
-        <div id="productGrid" class="product-grid-wrap"></div>
-
-        <div class="empty-state" id="emptyState" hidden>
-          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <h3>Nenhum produto encontrado</h3>
-          <p>Tente outros filtros ou aguarde a próxima atualização automática.</p>
-        </div>
-
-      </section>
-    </main>
-
-    <!-- Drawer backdrop -->
-    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-
-    <!-- Product drawer -->
-    <aside class="product-drawer" id="productDrawer" aria-hidden="true" aria-label="Detalhes do produto">
-      <button class="drawer-close" id="drawerClose" type="button" aria-label="Fechar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-      <div id="drawerContent"></div>
-    </aside>
-
-    <!-- Product card template -->
-    <template id="productCardTemplate">
-      <article class="product-card">
-        <div class="card-img-wrap">
-          <button class="card-media" type="button" aria-label="Ver produto"></button>
-          <div class="card-badges">
-            <span class="discount-pill"></span>
-          </div>
-          <button class="favorite-toggle" type="button" aria-label="Favoritar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          </button>
-        </div>
-        <div class="card-body">
-          <div class="card-meta">
-            <span class="source-pill"></span>
-            <span class="category-chip"></span>
-          </div>
-          <h3 class="card-title"></h3>
-          <div class="card-price">
-            <strong class="price-now"></strong>
-            <s class="price-was"></s>
-          </div>
-          <div class="card-actions">
-            <button class="btn-details" type="button">Detalhes</button>
-            <a class="btn-buy" target="_blank" rel="noopener noreferrer">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              Comprar
-            </a>
-          </div>
-        </div>
-      </article>
-    </template>
-
-    <script src="products.js"></script>
-    <script src="app.js"></script>
-    <script>
-      // Banner Telegram: fecha e lembra por 7 dias
-      (function () {
-        const STORAGE_KEY = 'tg_banner_closed';
-        const banner = document.getElementById('tgBanner');
-        const closeBtn = document.getElementById('tgBannerClose');
-        const joinBtn = document.getElementById('tgJoinBtn');
-
-        function hideBanner() {
-          banner.style.display = 'none';
-          document.body.classList.remove('has-tg-banner');
-        }
-
-        const closed = localStorage.getItem(STORAGE_KEY);
-        if (closed && Date.now() - Number(closed) < 7 * 86400000) {
-          hideBanner();
-        }
-
-        closeBtn.addEventListener('click', function () {
-          localStorage.setItem(STORAGE_KEY, Date.now());
-          hideBanner();
-        });
-
-        // Clique no "Entrar": fecha o banner após 3s (usuário já foi pro Telegram)
-        joinBtn.addEventListener('click', function () {
-          setTimeout(function () {
-            localStorage.setItem(STORAGE_KEY, Date.now());
-            hideBanner();
-          }, 3000);
-        });
-      })();
-    </script>
-  </body>
+<script src="products.js"></script>
+<script src="app.js"></script>
+</body>
 </html>
