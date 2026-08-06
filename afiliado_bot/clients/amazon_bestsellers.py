@@ -155,7 +155,16 @@ class AmazonBestSellersClient:
                 # depois), entao o backoff cresce e leva jitter para nao bater
                 # sempre no mesmo ritmo.
                 backoff = self.config.amazon_bestsellers_delay * (2 ** attempt)
-                time.sleep(backoff + random.uniform(0, self.config.amazon_bestsellers_delay))
+                wait = backoff + random.uniform(0, self.config.amazon_bestsellers_delay)
+                log.warning(
+                    "%s: tentativa %d/%d falhou (%s). Nova tentativa em %.0fs",
+                    slug,
+                    attempt + 1,
+                    self.config.amazon_bestsellers_attempts,
+                    last_error,
+                    wait,
+                )
+                time.sleep(wait)
 
         raise ProviderError(f"Amazon bestsellers falhou em {slug}: {last_error}")
 

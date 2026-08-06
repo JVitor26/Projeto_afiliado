@@ -71,10 +71,13 @@ class MiningService:
         o caminho paralelo de :meth:`mine` derruba a leitura.
         """
         report = MiningReport()
+        total = len(keywords)
         for index, keyword in enumerate(keywords):
             if index and delay_seconds > 0:
+                log.info("aguardando %.0fs antes da proxima categoria", delay_seconds)
                 time.sleep(delay_seconds)
             for provider in self.providers:
+                log.info("[%d/%d] lendo %s (%s)", index + 1, total, keyword, provider.name)
                 try:
                     partial = self._fetch_and_process(provider, keyword, limit_per_keyword)
                 except Exception as exc:  # noqa: BLE001 - uma categoria nao pode derrubar o ciclo
@@ -85,6 +88,14 @@ class MiningService:
                 report.imported += partial.imported
                 report.skipped += partial.skipped
                 report.errors.extend(partial.errors)
+                log.info(
+                    "[%d/%d] %s: %d importados, %d ignorados",
+                    index + 1,
+                    total,
+                    keyword,
+                    partial.imported,
+                    partial.skipped,
+                )
         return report
 
     def _mine_keyword(self, keyword: str, limit_per_keyword: int) -> MiningReport:
