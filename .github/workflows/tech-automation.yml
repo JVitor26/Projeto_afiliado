@@ -1,0 +1,224 @@
+name: Tech Bot - PromoTECHLink Brasil
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Rodar sem enviar para o Telegram"
+        required: false
+        default: false
+        type: boolean
+      product_url:
+        description: "🔗 Link de produto tech para postar agora"
+        required: false
+        type: string
+        default: ""
+  schedule:
+    # Roda a cada 8 minutos, deslocado 4 min do bot principal para nao competir
+    - cron: "4,12,20,28,36,44,52 * * * *"
+
+concurrency:
+  group: tech-bot
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  tech-automacao:
+    name: Minerar e publicar produtos tech
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_PATH: data/tech.db
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+
+      # Bot exclusivo do canal tech — NAO usa o bot/canal geral
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TECH_BOT_TOKEN }}
+      TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_TECH_CHAT_IDS }}
+
+     # Keywords Premium - Tecnologia (2026)
+      KEYWORDS: >-
+        iphone 16,iphone 16 pro,iphone 16 pro max,
+        samsung galaxy s25,samsung galaxy s25 plus,samsung galaxy s25 ultra,
+        samsung galaxy z fold,galaxy z flip,
+        google pixel 10,
+        xiaomi 16,xiaomi 16 pro,xiaomi 16 ultra,
+        motorola razr,motorola edge,
+
+        macbook air,macbook pro,
+        notebook gamer,notebook intel core ultra,notebook amd ryzen ai,
+        notebook dell xps,notebook lenovo legion,notebook acer predator,
+        notebook asus rog,notebook samsung galaxy book,
+
+        monitor oled,monitor qd oled,monitor 4k,monitor ultrawide,
+        monitor 240hz,monitor 360hz,
+
+        ssd nvme gen4,ssd nvme gen5,ssd externo,
+        memoria ram ddr5,
+
+        geforce rtx 5060,geforce rtx 5070,geforce rtx 5080,geforce rtx 5090,
+        radeon rx 9070,radeon rx 9080,
+
+        intel core ultra,amd ryzen ai,amd ryzen 9000,
+
+        placa mae am5,placa mae intel,
+        fonte modular,fonte atx 3.1,
+        gabinete gamer,water cooler,
+
+        roteador wifi 7,roteador mesh wifi 7,
+
+        playstation 5 pro,playstation 5,
+        xbox series x,
+        nintendo switch 2,
+        steam deck,
+        rog ally,
+        legion go,
+
+        teclado mecanico,
+        mouse gamer,
+        headset gamer,
+        headset sem fio,
+
+        smart tv oled,
+        smart tv mini led,
+        smart tv qled,
+        smart tv samsung,
+        smart tv lg,
+        tv 55 polegadas,
+        tv 65 polegadas,
+        tv 75 polegadas,
+
+        airpods pro,
+        galaxy buds,
+        sony wh-1000xm6,
+
+        ipad pro,
+        ipad air,
+        galaxy tab s10,
+
+        apple watch,
+        galaxy watch,
+        garmin fenix,
+        garmin forerunner,
+
+        webcam 4k,
+
+        power bank,
+        carregador gan,
+        carregador sem fio qi2,
+
+        impressora laser,
+        impressora multifuncional,
+
+        drone dji,
+        gopro,
+        camera mirrorless,
+
+        nas synology,
+        nas qnap,
+
+        synology,
+        qnap,
+
+        chromecast google tv,
+        apple tv 4k,
+
+        soundbar,
+        home theater
+
+      PUBLISH_LIMIT: "4"
+      MINE_LIMIT_PER_KEYWORD: "15"
+      MIN_SCORE_TO_PUBLISH: "35"
+      MIN_DISCOUNT_PERCENT: "15"
+      REPOST_AFTER_MINUTES: "240"
+
+      MERCADOLIVRE_CLIENT_ID: ${{ secrets.MERCADOLIVRE_CLIENT_ID }}
+      MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+      MERCADOLIVRE_ACCESS_TOKEN: ${{ secrets.MERCADOLIVRE_ACCESS_TOKEN }}
+      MERCADOLIVRE_REFRESH_TOKEN: ${{ secrets.MERCADOLIVRE_REFRESH_TOKEN }}
+      SHOPEE_AUTHORIZATION_HEADER: ${{ secrets.SHOPEE_AUTHORIZATION_HEADER }}
+      AMAZON_AUTHORIZATION_HEADER: ${{ secrets.AMAZON_AUTHORIZATION_HEADER }}
+      AMAZON_CREATORS_CREDENTIAL_ID: ${{ secrets.AMAZON_CREATORS_CREDENTIAL_ID }}
+      AMAZON_CREATORS_CREDENTIAL_SECRET: ${{ secrets.AMAZON_CREATORS_CREDENTIAL_SECRET }}
+      AMAZON_ACCESS_KEY: ${{ secrets.AMAZON_ACCESS_KEY }}
+      AMAZON_SECRET_KEY: ${{ secrets.AMAZON_SECRET_KEY }}
+      ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+      ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        shell: bash
+        run: |
+          pip install -e . --quiet
+          pip install Pillow --quiet
+
+      - name: Restaurar banco tech
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            data/tech.db
+            data/tech.db-shm
+            data/tech.db-wal
+          key: tech-db-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tech-db-
+
+      - name: Renovar token Mercado Livre
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${MERCADOLIVRE_CLIENT_ID:-}" ] && [ -n "${MERCADOLIVRE_CLIENT_SECRET:-}" ] && [ -n "${MERCADOLIVRE_REFRESH_TOKEN:-}" ]; then
+            python -m afiliado_bot mercadolivre-refresh-token --github-env
+          fi
+
+      - name: Postar link manual (quando URL informada)
+        if: github.event_name == 'workflow_dispatch' && inputs.product_url != ''
+        shell: bash
+        env:
+          PRODUCT_URL: ${{ inputs.product_url }}
+        run: |
+          set -euo pipefail
+          echo "Processando link tech: ${PRODUCT_URL}"
+          python -m afiliado_bot init-db
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m afiliado_bot link-offer "${PRODUCT_URL}" --no-auto-publish
+          else
+            python -m afiliado_bot link-offer "${PRODUCT_URL}"
+          fi
+
+      - name: Publicar oferta tech
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m afiliado_bot init-db
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-4}" --dry-run
+          else
+            python -m afiliado_bot publish --limit "${PUBLISH_LIMIT:-4}"
+          fi
+
+      - name: Minerar produtos tech
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m afiliado_bot mine \
+            --limit-per-keyword "${MINE_LIMIT_PER_KEYWORD:-15}" \
+            --allow-errors
+
+      - name: Salvar banco tech
+        if: env.DRY_RUN != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            data/tech.db
+            data/tech.db-shm
+            data/tech.db-wal
+          key: tech-db-${{ github.run_id }}-${{ github.run_attempt }}

@@ -5,6 +5,11 @@ import math
 from .config import AppConfig
 from .models import Product
 
+_BROKEN_SCRAPE_MARKERS = (
+    "não foi possível", "nao foi possivel", "página não encontrada", "pagina nao encontrada",
+    "page not found", "404 not found", "acesso negado", "access denied",
+)
+
 _TRUSTED_STORES = frozenset({
     "magazine luiza", "magazineluiza", "magalu",
     "casas bahia", "casasbahia",
@@ -28,12 +33,21 @@ class ProductRanker:
             if denied.lower() in title:
                 return f"blocked keyword: {denied}"
 
+        if any(marker in title for marker in _BROKEN_SCRAPE_MARKERS):
+            return "broken page title (scrape failure)"
+
         if self.config.require_product_image and not product.image_url.strip():
             return "missing product image"
 
         url_text = f"{product.permalink} {product.affiliate_url}".lower()
         if any(marker in url_text for marker in ("example.com", "produto-demo", "oferta-afiliada-demo", "demo-shopee")):
             return "demo or example link"
+
+        if product.price <= 0:
+            coupon_code = str(product.metadata.get("coupon_code") or "").strip()
+            search_code = str(product.metadata.get("search_code") or "").strip()
+            if not coupon_code and not search_code:
+                return "no price and no coupon/search code (likely broken scrape)"
 
         if product.sold_quantity is not None and product.sold_quantity < self.config.min_sold_quantity:
             return f"sold quantity below minimum ({product.sold_quantity} < {self.config.min_sold_quantity})"
@@ -52,7 +66,7 @@ class ProductRanker:
             return "price above maximum"
         if (
             self.config.min_discount_percent
-            and product.discount_percent
+            and product.original_price is not None
             and product.discount_percent < self.config.min_discount_percent
         ):
             return "discount below minimum"
