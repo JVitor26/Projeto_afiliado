@@ -214,6 +214,11 @@ def main(argv: list[str] | None = None) -> int:
     publish_parser.add_argument("--limit", type=int)
     publish_parser.add_argument("--min-score", type=float)
     publish_parser.add_argument("--dry-run", action="store_true")
+    publish_parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="continua publicando a cada INTERVAL_MINUTES (util quando o GitHub Actions esta fora)",
+    )
 
     run_parser = subparsers.add_parser("run", help="executa mineracao e publicacao em loop")
     run_parser.add_argument("--limit-per-keyword", type=int)
@@ -865,13 +870,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "publish":
         posters = _build_posters(config, force_dry_run=args.dry_run)
         publishing = PublishingService(config, storage, posters)
-        sent = publishing.publish(
-            limit=args.limit or config.publish_limit,
-            dry_run=args.dry_run,
-            min_score=args.min_score,
-        )
-        print(f"Publicacoes processadas: {sent}")
-        return 0
+        while True:
+            cycle_start = time.monotonic()
+            sent = publishing.publish(
+                limit=args.limit or config.publish_limit,
+                dry_run=args.dry_run,
+                min_score=args.min_score,
+            )
+            print(f"Publicacoes processadas: {sent}")
+            if not args.loop:
+                return 0
+            print(f"Proxima rodada em {config.interval_minutes} minutos. Ctrl+C para parar.")
+            _sleep_until_next_cycle(max(config.interval_minutes, 1) * 60, cycle_start)
 
     if args.command == "run":
         posters = _build_posters(config, force_dry_run=False)

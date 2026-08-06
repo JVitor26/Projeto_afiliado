@@ -196,6 +196,23 @@ O conector antigo por feed/proxy (`SHOPEE_PRODUCT_FEED_URL`, `SHOPEE_FEED_PATH`)
 continua funcionando como alternativa; a Open API tem prioridade quando o App ID
 e o Secret estiverem preenchidos.
 
+## Publicar sem depender do GitHub Actions
+
+Quando o GitHub Actions esta fora do ar (ou voce so quer testar), da para
+manter o canal publicando direto da sua maquina, usando os produtos que ja
+estao no banco:
+
+```powershell
+python -m afiliado_bot publish --limit 3            # publica uma vez
+python -m afiliado_bot publish --loop               # publica a cada INTERVAL_MINUTES
+```
+
+Para minerar e publicar no mesmo ciclo:
+
+```powershell
+python -m afiliado_bot amazon-bestsellers --loop
+```
+
 ## Vigiar a saude das lojas
 
 Uma loja pode parar de trazer produtos sem ninguem perceber: `mine --allow-errors`
