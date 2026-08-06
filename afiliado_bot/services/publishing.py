@@ -37,46 +37,59 @@ class PublishingService:
             )
             is_repost = True
 
-        # Deduplicação por similaridade: só para produtos NOVOS (não reposts).
-        # Para reposts o cooldown do banco já garante o intervalo — não filtrar aqui.
-        recent_titles = self.storage.recently_published_titles(hours=4) if not is_repost else []
+        # Deduplicação por similaridade: evita repetir a mesma família de produto
+        # (variações de cor/tamanho/modelo) publicada recentemente — vale também
+        # para reposts, já que o cooldown por produto não cobre variantes com
+        # external_id diferente.
+        recent_titles = self.storage.recently_published_titles(hours=12)
 
         sent = 0
         published_this_run: list[str] = []  # títulos postados nesta execução
+        skipped_as_duplicate: list[Product] = []
 
         for product in products:
-            # Evita publicar variantes similares em sequência (ex: mesmo produto, sabores diferentes)
+            # Evita publicar variantes similares em sequência (ex: mesmo produto, cores diferentes)
             all_recent = recent_titles + published_this_run
             if all_recent and any(are_titles_similar(product.title, t) for t in all_recent):
                 log.debug("skip-dedup: similar ja publicado: %s", product.title[:60])
+                skipped_as_duplicate.append(product)
                 continue
 
-            message = build_offer_message(product, self.config.public_base_url)
-            for poster in self.posters:
-                results = poster.post(message, product)
-                for result in results:
-                    status = "sent" if result.success and not dry_run else "preview" if dry_run else "failed"
-                    if result.success:
-                        log.info("[%s] %s", result.channel, status)
-                    else:
-                        log.warning("[%s] %s: %s", result.channel, status, result.response[:120])
-                    if product.id is not None:
-                        self.storage.add_post(
-                            product.id,
-                            result.channel,
-                            status,
-                            message,
-                            result.response,
-                        )
-                    if result.success:
-                        sent += 1
-
+            sent += self._send_product(product, dry_run)
             if not dry_run:
                 published_this_run.append(product.title)
+
+        # Repost: se todos os candidatos foram descartados por similaridade, é
+        # melhor repetir um produto do que deixar o canal em silêncio.
+        if sent == 0 and is_repost and not dry_run and skipped_as_duplicate:
+            sent += self._send_product(skipped_as_duplicate[0], dry_run)
 
         if sent == 0 and not dry_run:
             self._alert_zero_published(len(products))
 
+        return sent
+
+    def _send_product(self, product: Product, dry_run: bool) -> int:
+        message = build_offer_message(product, self.config.public_base_url)
+        sent = 0
+        for poster in self.posters:
+            results = poster.post(message, product)
+            for result in results:
+                status = "sent" if result.success and not dry_run else "preview" if dry_run else "failed"
+                if result.success:
+                    log.info("[%s] %s", result.channel, status)
+                else:
+                    log.warning("[%s] %s: %s", result.channel, status, result.response[:120])
+                if product.id is not None:
+                    self.storage.add_post(
+                        product.id,
+                        result.channel,
+                        status,
+                        message,
+                        result.response,
+                    )
+                if result.success:
+                    sent += 1
         return sent
 
     def _alert_zero_published(self, candidates: int) -> None:
@@ -126,6 +139,9 @@ def build_offer_message(product: Product, public_base_url: str = "") -> str:
     has_original = bool(product.original_price and product.original_price > product.price > 0)
     is_flash = str(product.metadata.get("offer_type") or "").lower() in ("flash", "relâmpago", "deal_of_day")
 
+    bestseller_rank = _as_int(product.metadata.get("bestseller_rank"))
+    bestseller_category = str(product.metadata.get("bestseller_category") or "").strip()
+
     # ── Cabeçalho com urgência ──────────────────────────────
     if is_flash:
         header = "⚡ <b>OFERTA RELÂMPAGO! CORRE!</b>"
@@ -137,6 +153,8 @@ def build_offer_message(product: Product, public_base_url: str = "") -> str:
         header = f"🔥 <b>OFERTA QUENTE — {discount_pct}% OFF!</b>"
     elif discount_pct >= 20:
         header = f"💥 <b>DESCONTO DE {discount_pct}% OFF!</b>"
+    elif bestseller_rank:
+        header = f"🏆 <b>TOP #{bestseller_rank} MAIS VENDIDOS — {source_name.upper()}!</b>"
     else:
         header = f"🛒 <b>OFERTA DO DIA — {source_name.upper()}!</b>"
 
@@ -184,11 +202,16 @@ def build_offer_message(product: Product, public_base_url: str = "") -> str:
 
     # ── Avaliação e vendas ──────────────────────────────────
     proof_parts = []
+    if bestseller_rank and bestseller_category:
+        proof_parts.append(f"🏆 #{bestseller_rank} em {escape(bestseller_category)}")
     if product.rating and product.rating >= 4.0:
         stars = "⭐" * min(5, round(product.rating))
         proof_parts.append(f"{stars} {product.rating:.1f}/5")
     if product.sold_quantity and product.sold_quantity >= 50:
-        proof_parts.append(f"🛍️ +{product.sold_quantity:,} vendidos")
+        # No ranking da Amazon esse numero e a quantidade de avaliacoes, nao de vendas.
+        label = "avaliações" if bestseller_rank else "vendidos"
+        amount = f"{product.sold_quantity:,}".replace(",", ".")
+        proof_parts.append(f"🛍️ +{amount} {label}")
     if proof_parts:
         lines.extend(["", " · ".join(proof_parts)])
 

@@ -305,14 +305,59 @@ AMAZON_CREATORS_CREDENTIAL_ID=seu_credential_id
 AMAZON_CREATORS_CREDENTIAL_SECRET=seu_credential_secret
 AMAZON_CREATORS_VERSION=3.1
 AMAZON_MARKETPLACE=www.amazon.com.br
-AMAZON_AFFILIATE_TEMPLATE={url}
+AMAZON_AFFILIATE_TEMPLATE=https://www.amazon.com.br/dp/{external_id}?tag={affiliate_id}&linkCode=ll1&language=pt_BR&ref_=as_li_ss_tl
 ```
+
+> Nao use `AMAZON_AFFILIATE_TEMPLATE={url}`: isso publica o link **sem** a sua tag de associado, ou seja, manda trafego para a Amazon sem gerar comissao.
 
 Teste as credenciais sem publicar:
 
 ```powershell
 python -m afiliado_bot amazon-creators-test --keyword "fone bluetooth"
 ```
+
+### Mais Vendidos da Amazon (sem API)
+
+O comando `amazon-bestsellers` le as listas publicas **Mais Vendidos**
+(`amazon.com.br/gp/bestsellers/<categoria>`), pega titulo, preco, nota, numero de
+avaliacoes e imagem de cada item do ranking, monta o link com a sua tag de
+associado e publica no Telegram. Nao precisa de PA-API nem da Creators API — o
+unico requisito e `AMAZON_PARTNER_TAG`.
+
+```env
+AMAZON_PARTNER_TAG=seu-tag-20
+AMAZON_BESTSELLERS_CATEGORIES=electronics,computers,videogames,appliances,kitchen,home,hpc,beauty,toys,sports,automotive,office-products
+AMAZON_BESTSELLERS_LIMIT=8
+```
+
+```powershell
+# ver o que sairia, sem enviar nada
+python -m afiliado_bot amazon-bestsellers --dry-run
+
+# so uma categoria
+python -m afiliado_bot amazon-bestsellers --category videogames --limit-per-category 5
+
+# minerar agora e deixar o comando `publish` postar depois
+python -m afiliado_bot amazon-bestsellers --no-publish
+
+# em loop, a cada INTERVAL_MINUTES
+python -m afiliado_bot amazon-bestsellers --loop
+```
+
+Sem `AMAZON_PARTNER_TAG` o comando para com erro em vez de publicar link sem
+comissao. As categorias sao lidas **uma por vez**, com pausa de
+`AMAZON_BESTSELLERS_DELAY` segundos entre elas: leituras simultaneas fazem a
+Amazon responder `503`. Mesmo assim o `503` acontece de forma aleatoria, entao
+cada pagina e tentada `AMAZON_BESTSELLERS_ATTEMPTS` vezes com espera crescente, e
+uma categoria que falhar nao derruba as outras.
+
+Como o ranking nao informa preco "de", esses posts saem com o cabecalho
+`TOP #N MAIS VENDIDOS` em vez de porcentagem de desconto.
+
+No GitHub Actions esse passo ja roda junto da automacao a cada 8 minutos, desde
+que voce cadastre a variavel `AMAZON_PARTNER_TAG` em
+*Settings > Secrets and variables > Actions > Variables*. Sem ela, o passo e
+pulado com um aviso.
 
 Para fazer igual ao Mercado Livre, minerando automaticamente, atualizando o site e publicando no Telegram:
 

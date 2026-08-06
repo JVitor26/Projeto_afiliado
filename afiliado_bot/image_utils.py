@@ -24,8 +24,9 @@ def watermark_image(
     product_image_url: str,
     *,
     logo_path: Path | None = None,
-    logo_scale: float = 0.28,   # logo ocupa 28% da largura da imagem
-    opacity: float = 0.90,       # 90% de opacidade
+    logo_scale: float = 0.24,   # logo ocupa 24% da largura da imagem
+    opacity: float = 0.60,       # 60% de opacidade: marca presente, sem tapar o produto
+    corner_radius: float = 0.18,  # raio dos cantos, proporcional ao menor lado da logo
     position: str = "bottom-right",  # bottom-right | bottom-left | top-right | top-left
 ) -> bytes | None:
     """
@@ -71,11 +72,10 @@ def watermark_image(
         lh = int(lw * logo_img.height / logo_img.width)
         logo_resized = logo_img.resize((lw, lh), Image.LANCZOS)
 
-        # Aplicar opacidade (ajusta só o canal alpha)
-        if opacity < 1.0:
-            r, g, b, a = logo_resized.split()
-            a = a.point(lambda v: int(v * opacity))
-            logo_resized = Image.merge("RGBA", (r, g, b, a))
+        # Cantos arredondados + opacidade.
+        # A logo é um JPEG (sem canal alpha), então sem esta máscara ela entra
+        # como um retângulo sólido de borda dura.
+        logo_resized = _soften(logo_resized, opacity=opacity, corner_radius=corner_radius)
 
         # Calcular posição
         margin = max(8, int(pw * 0.025))
@@ -98,3 +98,27 @@ def watermark_image(
 
     except Exception:
         return None
+
+
+def _soften(logo, *, opacity: float, corner_radius: float):
+    """Arredonda os cantos da logo e reduz a opacidade.
+
+    A máscara é desenhada ampliada e depois reduzida (supersampling), porque
+    ``rounded_rectangle`` não faz antialiasing — sem isso a curva fica serrilhada.
+    """
+    from PIL import Image, ImageChops, ImageDraw
+
+    width, height = logo.size
+    radius = max(1, int(min(width, height) * corner_radius))
+    scale = 4
+
+    mask = Image.new("L", (width * scale, height * scale), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, width * scale - 1, height * scale - 1),
+        radius=radius * scale,
+        fill=round(255 * max(0.0, min(1.0, opacity))),
+    )
+    mask = mask.resize((width, height), Image.LANCZOS)
+
+    red, green, blue, alpha = logo.split()
+    return Image.merge("RGBA", (red, green, blue, ImageChops.multiply(alpha, mask)))

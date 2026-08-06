@@ -116,6 +116,11 @@ jobs:
           V_AMAZON_MARKETPLACE: ${{ vars.AMAZON_MARKETPLACE }}
           V_AMAZON_SEARCH_INDEX: ${{ vars.AMAZON_SEARCH_INDEX }}
           V_AMAZON_AFFILIATE_TEMPLATE: ${{ vars.AMAZON_AFFILIATE_TEMPLATE }}
+          V_AMAZON_BESTSELLERS_CATEGORIES: ${{ vars.AMAZON_BESTSELLERS_CATEGORIES }}
+          V_AMAZON_BESTSELLERS_LIMIT: ${{ vars.AMAZON_BESTSELLERS_LIMIT }}
+          V_AMAZON_BESTSELLERS_PAGES: ${{ vars.AMAZON_BESTSELLERS_PAGES }}
+          V_AMAZON_BESTSELLERS_ATTEMPTS: ${{ vars.AMAZON_BESTSELLERS_ATTEMPTS }}
+          V_AMAZON_BESTSELLERS_DELAY: ${{ vars.AMAZON_BESTSELLERS_DELAY }}
           V_ALIEXPRESS_MODE: ${{ vars.ALIEXPRESS_MODE }}
           V_ALIEXPRESS_PRODUCT_FEED_URL: ${{ vars.ALIEXPRESS_PRODUCT_FEED_URL }}
           V_ALIEXPRESS_FEED_PATH: ${{ vars.ALIEXPRESS_FEED_PATH }}
@@ -187,6 +192,11 @@ jobs:
           add_env AMAZON_MARKETPLACE "$V_AMAZON_MARKETPLACE"
           add_env AMAZON_SEARCH_INDEX "$V_AMAZON_SEARCH_INDEX"
           add_env AMAZON_AFFILIATE_TEMPLATE "$V_AMAZON_AFFILIATE_TEMPLATE"
+          add_env AMAZON_BESTSELLERS_CATEGORIES "$V_AMAZON_BESTSELLERS_CATEGORIES"
+          add_env AMAZON_BESTSELLERS_LIMIT "$V_AMAZON_BESTSELLERS_LIMIT"
+          add_env AMAZON_BESTSELLERS_PAGES "$V_AMAZON_BESTSELLERS_PAGES"
+          add_env AMAZON_BESTSELLERS_ATTEMPTS "$V_AMAZON_BESTSELLERS_ATTEMPTS"
+          add_env AMAZON_BESTSELLERS_DELAY "$V_AMAZON_BESTSELLERS_DELAY"
           add_env ALIEXPRESS_MODE "$V_ALIEXPRESS_MODE"
           add_env ALIEXPRESS_PRODUCT_FEED_URL "$V_ALIEXPRESS_PRODUCT_FEED_URL"
           add_env ALIEXPRESS_FEED_PATH "$V_ALIEXPRESS_FEED_PATH"
@@ -303,6 +313,20 @@ jobs:
             python -m afiliado_bot link-offer "${PRODUCT_URL}"
           fi
           python -m afiliado_bot export-site --limit "${SITE_EXPORT_LIMIT:-120}" --keep-existing-if-empty
+
+      - name: Minerar Mais Vendidos da Amazon
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${AMAZON_PARTNER_TAG:-}" ]; then
+            echo "::warning::AMAZON_PARTNER_TAG nao configurado. Sem a tag de associado o link nao gera comissao, entao os Mais Vendidos da Amazon foram pulados. Defina a variavel em Settings > Secrets and variables > Actions > Variables."
+            exit 0
+          fi
+          python -m afiliado_bot init-db
+          # --no-publish: quem posta e o passo "Publicar oferta", que ranqueia
+          # os produtos de todas as fontes juntos.
+          python -m afiliado_bot amazon-bestsellers --no-publish || \
+            echo "::warning::Leitura dos Mais Vendidos falhou nesta execucao (Amazon costuma responder 503); segue com as demais fontes."
 
       - name: Publicar oferta
         shell: bash

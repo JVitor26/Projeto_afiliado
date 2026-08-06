@@ -60,6 +60,23 @@ DEFAULT_KEYWORDS = (
     # ── Bebê ────────────────────────────────────────────────
     "carrinho bebe,cadeirinha bebe carro,berco,kit higiene bebe"
 )
+# Slugs das listas "Mais Vendidos" da Amazon BR (amazon.com.br/gp/bestsellers/<slug>).
+# Ordem importa: as primeiras sao as de maior ticket/comissao.
+DEFAULT_BESTSELLERS_CATEGORIES = (
+    "electronics,computers,videogames,appliances,kitchen,"
+    "home,hpc,beauty,toys,sports,automotive,office-products"
+)
+DEFAULT_DENY_KEYWORDS = (
+    # ── Produto usado / não-novo (nunca publicar) ───────────
+    "usado,quebrado,defeito,recondicionado,replica,imitacao,falso,"
+    "seminovo,semi novo,semi-novo,recuperado,reembalado,caixa aberta,"
+    "produto de vitrine,avariado,revenda,para revenda,produto de revenda,atacado,"
+    # ── Acessórios genéricos / baixo valor que poluem buscas ─
+    "capinha,capa para celular,capa protetora para celular,"
+    "pelicula de vidro,película de vidro,pingente,chaveiro,berloque,"
+    "bijuteria,brinco,colar folheado,adesivo de parede,miniatura colecionavel,"
+    "kit 10 unidades,kit com 10 unidades"
+)
 
 
 def load_dotenv(path: Path | None = None) -> None:
@@ -177,6 +194,12 @@ class AppConfig:
     amazon_search_index: str = "All"
     amazon_affiliate_template: str = ""
 
+    amazon_bestsellers_categories: list[str] = field(default_factory=list)
+    amazon_bestsellers_limit: int = 8
+    amazon_bestsellers_pages: int = 1
+    amazon_bestsellers_attempts: int = 4
+    amazon_bestsellers_delay: float = 4.0
+
     telegram_bot_token: str = ""
     telegram_chat_ids: list[str] = field(default_factory=list)
     telegram_tech_bot_token: str = ""
@@ -241,7 +264,7 @@ def load_config() -> AppConfig:
             "KEYWORDS",
             DEFAULT_KEYWORDS,
         ),
-        deny_keywords=_csv("DENY_KEYWORDS", "usado,quebrado,defeito,recondicionado,replica,imitacao,falso"),
+        deny_keywords=_csv("DENY_KEYWORDS", DEFAULT_DENY_KEYWORDS),
         min_price=_float("MIN_PRICE", 80.0),
         max_price=_float("MAX_PRICE", 0.0),
         min_discount_percent=_float("MIN_DISCOUNT_PERCENT", 15.0),
@@ -303,6 +326,11 @@ def load_config() -> AppConfig:
         amazon_marketplace=os.getenv("AMAZON_MARKETPLACE", "www.amazon.com.br"),
         amazon_search_index=os.getenv("AMAZON_SEARCH_INDEX", "All"),
         amazon_affiliate_template=os.getenv("AMAZON_AFFILIATE_TEMPLATE", ""),
+        amazon_bestsellers_categories=_csv("AMAZON_BESTSELLERS_CATEGORIES", DEFAULT_BESTSELLERS_CATEGORIES),
+        amazon_bestsellers_limit=_int("AMAZON_BESTSELLERS_LIMIT", 8),
+        amazon_bestsellers_pages=_int("AMAZON_BESTSELLERS_PAGES", 1),
+        amazon_bestsellers_attempts=_int("AMAZON_BESTSELLERS_ATTEMPTS", 4),
+        amazon_bestsellers_delay=_float("AMAZON_BESTSELLERS_DELAY", 4.0),
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         telegram_chat_ids=_csv("TELEGRAM_CHAT_IDS"),
         telegram_tech_bot_token=os.getenv("TELEGRAM_TECH_BOT_TOKEN", "").strip(),

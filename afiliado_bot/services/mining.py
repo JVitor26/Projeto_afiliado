@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import time
 from dataclasses import dataclass, field
 
 from afiliado_bot.clients.base import ProductProvider, ProviderError
@@ -54,6 +55,36 @@ class MiningService:
                         report.errors.append(msg)
                         log.warning(msg)
 
+        return report
+
+    def mine_serial(
+        self,
+        keywords: list[str],
+        *,
+        limit_per_keyword: int,
+        delay_seconds: float = 0.0,
+    ) -> MiningReport:
+        """Minera uma keyword por vez, com pausa entre elas.
+
+        A Amazon devolve 503 quando recebe varias requisicoes simultaneas do
+        mesmo IP, entao as listas "Mais Vendidos" precisam ser lidas em serie —
+        o caminho paralelo de :meth:`mine` derruba a leitura.
+        """
+        report = MiningReport()
+        for index, keyword in enumerate(keywords):
+            if index and delay_seconds > 0:
+                time.sleep(delay_seconds)
+            for provider in self.providers:
+                try:
+                    partial = self._fetch_and_process(provider, keyword, limit_per_keyword)
+                except Exception as exc:  # noqa: BLE001 - uma categoria nao pode derrubar o ciclo
+                    msg = f"{provider.name}/{keyword}: {exc}"
+                    report.errors.append(msg)
+                    log.warning(msg)
+                    continue
+                report.imported += partial.imported
+                report.skipped += partial.skipped
+                report.errors.extend(partial.errors)
         return report
 
     def _mine_keyword(self, keyword: str, limit_per_keyword: int) -> MiningReport:

@@ -14,7 +14,14 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from . import configure_logging
-from .clients import AliExpressClient, AmazonClient, ManualProductClient, MercadoLivreClient, ShopeeClient
+from .clients import (
+    AliExpressClient,
+    AmazonBestSellersClient,
+    AmazonClient,
+    ManualProductClient,
+    MercadoLivreClient,
+    ShopeeClient,
+)
 from .commands.store import (
     display_category_for_product,
     export_store_products,
@@ -163,6 +170,25 @@ def main(argv: list[str] | None = None) -> int:
     auto_amazon_parser.add_argument("--site-limit", type=int, default=120)
     auto_amazon_parser.add_argument("--dry-run", action="store_true", help="nao envia ao Telegram; apenas mostra preview")
     auto_amazon_parser.add_argument("--loop", action="store_true", help="repete a automacao a cada INTERVAL_MINUTES")
+
+    bestsellers_parser = subparsers.add_parser(
+        "amazon-bestsellers",
+        help="le os Mais Vendidos da Amazon, atualiza a loja e publica no Telegram",
+    )
+    bestsellers_parser.add_argument(
+        "--category",
+        action="append",
+        dest="categories",
+        help="slug da lista (electronics, kitchen, videogames...); repita para varias",
+    )
+    bestsellers_parser.add_argument("--limit-per-category", type=int)
+    bestsellers_parser.add_argument("--publish-limit", type=int)
+    bestsellers_parser.add_argument("--min-score", type=float)
+    bestsellers_parser.add_argument("--site-out", default=str(BASE_DIR / "site" / "products.js"))
+    bestsellers_parser.add_argument("--site-limit", type=int, default=120)
+    bestsellers_parser.add_argument("--dry-run", action="store_true", help="nao envia ao Telegram; so mostra preview")
+    bestsellers_parser.add_argument("--no-publish", action="store_true", help="so minera, nao publica")
+    bestsellers_parser.add_argument("--loop", action="store_true", help="repete a cada INTERVAL_MINUTES")
 
     publish_parser = subparsers.add_parser("publish", help="publica os melhores produtos")
     publish_parser.add_argument("--limit", type=int)
@@ -640,6 +666,42 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Aguardando {config.interval_minutes} minutos. Ctrl+C para parar.")
             _sleep_until_next_cycle(max(config.interval_minutes, 1) * 60, cycle_start)
 
+    if args.command == "amazon-bestsellers":
+        if not config.amazon_partner_tag.strip():
+            print("AMAZON_PARTNER_TAG esta vazio no .env.")
+            print("Sem a tag de associado o link nao gera comissao. Preencha com o ID da sua loja (ex: 67005-20).")
+            return 2
+
+        exit_code = 0
+        while True:
+            cycle_start = time.monotonic()
+            report = run_bestsellers_auto(
+                config,
+                storage,
+                categories=args.categories or config.amazon_bestsellers_categories,
+                limit_per_category=args.limit_per_category or config.amazon_bestsellers_limit,
+                publish_limit=args.publish_limit or config.publish_limit,
+                min_score=config.min_score_to_publish if args.min_score is None else args.min_score,
+                site_out=Path(args.site_out),
+                site_limit=args.site_limit,
+                dry_run=args.dry_run,
+                publish=not args.no_publish,
+            )
+            print(f"Categorias lidas: {report['categories']}")
+            print(f"Produtos importados: {report['imported']}")
+            print(f"Ignorados pelos filtros: {report['skipped']}")
+            if report["errors"]:
+                print("Erros:")
+                for error in report["errors"]:
+                    print(f"- {error}")
+                exit_code = 2
+            print(f"Site atualizado: {report['site_out']}")
+            print(f"Telegram/publicacoes: {report['sent']}")
+            if not args.loop:
+                return exit_code
+            print(f"Aguardando {config.interval_minutes} minutos. Ctrl+C para parar.")
+            _sleep_until_next_cycle(max(config.interval_minutes, 1) * 60, cycle_start)
+
     if args.command == "publish":
         posters = _build_posters(config, force_dry_run=args.dry_run)
         publishing = PublishingService(config, storage, posters)
@@ -861,6 +923,49 @@ def run_provider_auto(
     sent = publishing.publish(limit=publish_limit, dry_run=dry_run, min_score=min_score)
 
     return {
+        "imported": mining_report.imported,
+        "skipped": mining_report.skipped,
+        "errors": mining_report.errors,
+        "site_out": str(site_out),
+        "sent": sent,
+    }
+
+
+def run_bestsellers_auto(
+    config: AppConfig,
+    storage: Storage,
+    *,
+    categories: list[str],
+    limit_per_category: int,
+    publish_limit: int,
+    min_score: float,
+    site_out: Path,
+    site_limit: int,
+    dry_run: bool,
+    publish: bool = True,
+) -> dict[str, object]:
+    """Le as listas Mais Vendidos, salva no banco, atualiza a loja e publica."""
+    ranker = ProductRanker(config, storage.category_boosts())
+    mining = MiningService([AmazonBestSellersClient(config)], storage, ranker)
+    # Serial e com pausa: leituras paralelas das paginas da Amazon retornam 503.
+    mining_report = mining.mine_serial(
+        categories,
+        limit_per_keyword=limit_per_category,
+        delay_seconds=config.amazon_bestsellers_delay,
+    )
+
+    if not site_out.is_absolute():
+        site_out = BASE_DIR / site_out
+    export_store_products(storage, site_out, limit=site_limit, keep_existing_if_empty=True)
+
+    sent = 0
+    if publish:
+        posters = _build_posters(config, force_dry_run=dry_run)
+        publishing = PublishingService(config, storage, posters)
+        sent = publishing.publish(limit=publish_limit, dry_run=dry_run, min_score=min_score)
+
+    return {
+        "categories": len(categories),
         "imported": mining_report.imported,
         "skipped": mining_report.skipped,
         "errors": mining_report.errors,

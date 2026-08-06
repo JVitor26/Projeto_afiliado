@@ -960,5 +960,195 @@ class StoreCommandsTests(unittest.TestCase):
             self.assertIn("clicks_by_source", data)
 
 
+BESTSELLERS_HTML = """
+<div id="gridItemRoot">
+<div id="B0BSVN58JW" class="p13n-sc-uncoverable-faceout">
+  <a class="a-link-normal aok-block" href="/Pilha-Alcalina/dp/B0BSVN58JW/ref=zg_bs_g_electronics_d_sccl_1">
+    <div class="a-section a-spacing-mini _cDEzb_noop_3Xbw5">
+      <img alt="Pilha Alcalina AAA com 16 unidades Elgin Palito"
+           src="https://images-na.ssl-images-amazon.com/images/I/517itypmYaL._AC_UL300_SR300,200_.jpg"
+           data-a-dynamic-image="{&quot;https://images-na.ssl-images-amazon.com/images/I/517itypmYaL._AC_UL300_SR300,200_.jpg&quot;:[300,200],&quot;https://images-na.ssl-images-amazon.com/images/I/517itypmYaL._AC_UL900_SR900,600_.jpg&quot;:[900,600]}"/>
+    </div>
+  </a>
+  <div class="_cDEzb_p13n-sc-css-line-clamp-3_g3dy1">Pilha Alcalina AAA com 16 unidades Elgin Palito</div>
+  <div class="a-icon-row">
+    <a aria-label="4,7 de 5 estrelas, 32.157 classifica&ccedil;&otilde;es" class="a-link-normal" href="/product-reviews/B0BSVN58JW">
+      <i class="a-icon a-icon-star-small a-star-small-4-5"><span class="a-icon-alt">4,7 de 5 estrelas</span></i>
+      <span aria-hidden="true" class="a-size-small">32.157</span>
+    </a>
+  </div>
+  <span class="a-size-base a-color-price"><span class="_cDEzb_p13n-sc-price_3mJ9Z">R$ 17,89</span></span>
+</div>
+<div id="B0CVCLGV1W" class="p13n-sc-uncoverable-faceout">
+  <img alt="Smartwatch Samsung Galaxy Fit3" src="https://images-na.ssl-images-amazon.com/images/I/51bjAlTBzZL._AC_UL300_.jpg"/>
+  <div class="_cDEzb_p13n-sc-css-line-clamp-3_g3dy1">Smartwatch Samsung Galaxy Fit3 Display 1.6&quot; Grafite</div>
+  <a aria-label="4,7 de 5 estrelas, 12.186 classifica&ccedil;&otilde;es" href="/product-reviews/B0CVCLGV1W"></a>
+  <span class="_cDEzb_p13n-sc-price_3mJ9Z">R$ 1.218,90</span>
+</div>
+</div>
+"""
+
+
+class AmazonBestSellersTest(unittest.TestCase):
+    def _config(self, **overrides):
+        base = {"amazon_partner_tag": "67005-20", "amazon_marketplace": "www.amazon.com.br"}
+        base.update(overrides)
+        return AppConfig(**base)
+
+    def _client(self, **overrides):
+        from afiliado_bot.clients.amazon_bestsellers import AmazonBestSellersClient
+
+        return AmazonBestSellersClient(self._config(**overrides))
+
+    def test_parse_extracts_products_from_ranking(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=1)
+
+        self.assertEqual(len(products), 2)
+        first = products[0]
+        self.assertEqual(first.external_id, "B0BSVN58JW")
+        self.assertEqual(first.title, "Pilha Alcalina AAA com 16 unidades Elgin Palito")
+        self.assertAlmostEqual(first.price, 17.89)
+        self.assertAlmostEqual(first.rating, 4.7)
+        self.assertEqual(first.sold_quantity, 32157)
+        self.assertEqual(first.category, "Eletronicos")
+        self.assertEqual(first.metadata["bestseller_rank"], 1)
+        self.assertEqual(products[1].metadata["bestseller_rank"], 2)
+
+    def test_parse_reads_brazilian_thousand_separator(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=1)
+        # "R$ 1.218,90" nao pode virar 1.21890 nem 121890
+        self.assertAlmostEqual(products[1].price, 1218.90)
+
+    def test_parse_picks_largest_image(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=1)
+        self.assertIn("_AC_UL900_SR900,600_", products[0].image_url)
+
+    def test_parse_unescapes_html_entities_in_title(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=1)
+        self.assertIn('1.6"', products[1].title)
+
+    def test_start_rank_offsets_second_page(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=31)
+        self.assertEqual(products[0].metadata["bestseller_rank"], 31)
+
+    def test_affiliate_url_always_carries_partner_tag(self):
+        products = self._client()._parse(BESTSELLERS_HTML, "electronics", start_rank=1)
+        for product in products:
+            self.assertIn("tag=67005-20", product.affiliate_url)
+            self.assertTrue(product.affiliate_url.startswith("https://www.amazon.com.br/dp/"))
+
+    def test_disabled_without_partner_tag(self):
+        client = self._client(amazon_partner_tag="")
+        self.assertFalse(client.enabled)
+
+    def test_fetch_refuses_to_run_without_partner_tag(self):
+        from afiliado_bot.clients.base import ProviderError
+
+        client = self._client(amazon_partner_tag="")
+        # Sem tag o link nao gera comissao: melhor falhar do que publicar de graca.
+        with self.assertRaises(ProviderError):
+            client.fetch("electronics", limit=5)
+
+    def test_build_affiliate_url_rejects_empty_tag(self):
+        from afiliado_bot.clients.amazon_bestsellers import build_affiliate_url
+
+        with self.assertRaises(ValueError):
+            build_affiliate_url("B0BSVN58JW", "")
+
+    def test_offer_message_shows_bestseller_rank(self):
+        product = Product(
+            source="amazon",
+            external_id="B0BSVN58JW",
+            title="Echo Dot",
+            price=459.0,
+            currency="BRL",
+            permalink="https://www.amazon.com.br/dp/B0BSVN58JW",
+            affiliate_url="https://www.amazon.com.br/dp/B0BSVN58JW?tag=67005-20",
+            image_url="https://img.example/echo.jpg",
+            rating=4.8,
+            sold_quantity=92146,
+            metadata={"bestseller_rank": 3, "bestseller_category": "Eletronicos"},
+        )
+        message = build_offer_message(product)
+
+        self.assertIn("TOP #3 MAIS VENDIDOS", message)
+        self.assertIn("#3 em Eletronicos", message)
+        # Numero em formato brasileiro e rotulado como avaliacoes, nao vendas.
+        self.assertIn("+92.146 avaliações", message)
+
+
+class MineSerialTest(unittest.TestCase):
+    class _Provider:
+        name = "amazon"
+
+        def __init__(self, products_by_keyword, fail_on=()):
+            self.products_by_keyword = products_by_keyword
+            self.fail_on = set(fail_on)
+            self.calls = []
+
+        def fetch(self, keyword, *, limit):
+            self.calls.append(keyword)
+            if keyword in self.fail_on:
+                raise RuntimeError("boom")
+            return self.products_by_keyword.get(keyword, [])
+
+    def _product(self, external_id):
+        return Product(
+            source="amazon",
+            external_id=external_id,
+            title=f"Produto {external_id}",
+            price=250.0,
+            currency="BRL",
+            permalink=f"https://www.amazon.com.br/dp/{external_id}",
+            affiliate_url=f"https://www.amazon.com.br/dp/{external_id}?tag=67005-20",
+            image_url="https://img.example/p.jpg",
+            rating=4.6,
+            sold_quantity=1200,
+        )
+
+    def _run(self, provider, keywords):
+        from afiliado_bot.services.mining import MiningService
+
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = Storage(Path(tmp) / "test.db")
+            storage.init_db()
+            config = AppConfig(min_price=0.0, min_discount_percent=0.0, min_sold_quantity=0)
+            service = MiningService([provider], storage, ProductRanker(config))
+            return service.mine_serial(keywords, limit_per_keyword=5, delay_seconds=0)
+
+    def test_visits_every_category_in_order(self):
+        provider = self._Provider({"electronics": [self._product("A1")], "kitchen": [self._product("B2")]})
+        report = self._run(provider, ["electronics", "kitchen"])
+
+        self.assertEqual(provider.calls, ["electronics", "kitchen"])
+        self.assertEqual(report.imported, 2)
+
+    def test_one_failing_category_does_not_stop_the_others(self):
+        provider = self._Provider({"kitchen": [self._product("B2")]}, fail_on=["electronics"])
+        report = self._run(provider, ["electronics", "kitchen"])
+
+        self.assertEqual(provider.calls, ["electronics", "kitchen"])
+        self.assertEqual(report.imported, 1)
+        self.assertEqual(len(report.errors), 1)
+
+
+class WatermarkTest(unittest.TestCase):
+    def test_soften_rounds_corners_and_lowers_opacity(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow nao instalado")
+
+        from afiliado_bot.image_utils import _soften
+
+        logo = Image.new("RGBA", (120, 120), (255, 80, 30, 255))
+        softened = _soften(logo, opacity=0.6, corner_radius=0.25)
+
+        # Canto vira transparente...
+        self.assertLess(softened.getpixel((0, 0))[3], 20)
+        # ...e o miolo fica translucido, nao opaco.
+        self.assertAlmostEqual(softened.getpixel((60, 60))[3], 153, delta=6)
+
+
 if __name__ == "__main__":
     unittest.main()
